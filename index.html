@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>3D Graph Notes</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GraphNotes">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#1e1e2e">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg-primary:#1e1e2e;--bg-secondary:#181825;--bg-tertiary:#313244;--text-primary:#cdd6f4;--text-secondary:#a6adc8;--accent:#89b4fa;--accent-hover:#b4d0fb;--green:#a6e3a1;--red:#f38ba8;--yellow:#f9e2af;--mauve:#cba6f7;--peach:#fab387;--teal:#94e2d5;--pink:#f5c2e7;--sky:#89dceb;--border:#45475a;--surface0:#313244;--surface1:#45475a;--surface2:#585b70}
+body{font-family:'Segoe UI','Meiryo',sans-serif;background:var(--bg-primary);color:var(--text-primary);height:100vh;overflow:hidden;display:flex;flex-direction:column;user-select:none}
+
+/* Header */
+#header{display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:var(--bg-secondary);border-bottom:1px solid var(--border);height:42px;flex-shrink:0;gap:10px}
+#header h1{font-size:14px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:7px;white-space:nowrap}
+.logo{width:22px;height:22px;background:linear-gradient(135deg,var(--accent),var(--mauve));border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--bg-primary);font-size:11px;font-weight:900}
+#stats-bar{font-size:11px;color:var(--text-secondary);display:flex;gap:10px;flex-shrink:0}
+.stat-item{display:flex;align-items:center;gap:3px}
+.stat-dot{width:5px;height:5px;border-radius:50%}
+#header-actions{display:flex;gap:5px;align-items:center}
+#search-input{background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);padding:4px 10px;border-radius:6px;font-size:12px;width:160px;outline:none}
+#search-input:focus{border-color:var(--accent)}
+#search-input::placeholder{color:var(--text-secondary)}
+
+/* Auth */
+#auth-area{display:flex;align-items:center;gap:6px}
+#google-login-btn{background:#fff;border:1px solid #dadce0;color:#3c4043;padding:0 12px 0 2px;border-radius:20px;cursor:pointer;font-size:11px;font-weight:500;display:flex;align-items:center;gap:6px;height:30px;box-shadow:0 1px 2px rgba(0,0,0,0.1)}
+#google-login-btn:hover{box-shadow:0 1px 6px rgba(0,0,0,0.2);background:#f8f9fa}
+#google-login-btn .g-logo{width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+#google-login-btn .g-logo svg{width:16px;height:16px}
+#user-info{display:none;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);background:var(--bg-tertiary);border-radius:20px;padding:2px 8px 2px 2px;border:1px solid var(--border)}
+#user-avatar{width:22px;height:22px;border-radius:50%;border:2px solid var(--accent)}
+#user-name{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#logout-btn{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:12px;padding:2px}
+#logout-btn:hover{color:var(--red)}
+#sync-indicator{font-size:9px;padding:2px 6px;border-radius:10px;display:none;align-items:center;gap:3px}
+#sync-indicator.syncing{display:flex;background:rgba(249,226,175,0.15);color:var(--yellow)}
+#sync-indicator.synced{display:flex;background:rgba(166,227,161,0.15);color:var(--green)}
+#sync-indicator.error{display:flex;background:rgba(243,139,168,0.15);color:var(--red)}
+.sync-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.sync-dot.pulse{animation:syncPulse 1s infinite}
+@keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Main */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* Sidebar */
+#sidebar{width:230px;background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+#sidebar.collapsed{width:0;overflow:hidden;border:none}
+#sidebar-header{padding:8px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+#sidebar-header span{font-size:11px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+#tag-filter{padding:5px 10px;border-bottom:1px solid var(--border);display:none;flex-wrap:wrap;gap:3px;max-height:56px;overflow-y:auto}
+#tag-filter.visible{display:flex}
+.tag-pill{font-size:10px;padding:1px 7px;border-radius:10px;cursor:pointer;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-secondary);transition:all .12s}
+.tag-pill:hover{border-color:var(--accent);color:var(--accent)}
+.tag-pill.active{background:var(--accent);color:var(--bg-primary);border-color:var(--accent)}
+#sort-bar{display:none;padding:4px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:3px}
+#sort-bar.visible{display:flex}
+#note-list{flex:1;overflow-y:auto;padding:2px 0}
+.note-item{padding:7px 10px;cursor:pointer;font-size:12px;border-left:3px solid transparent;transition:all .1s;display:flex;align-items:center;gap:6px}
+.note-item:hover{background:var(--bg-tertiary)}
+.note-item.active{background:var(--bg-tertiary);border-left-color:var(--accent)}
+.note-item-pin{font-size:10px;color:var(--yellow);flex-shrink:0}
+.note-item-left{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:1px}
+.note-item-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.note-item-meta{display:flex;gap:4px;align-items:center}
+.note-item-tag{font-size:9px;opacity:.7}
+.note-link-count{font-size:9px;color:var(--text-secondary);background:var(--bg-primary);padding:0 5px;border-radius:8px;flex-shrink:0}
+.note-item .delete-btn{opacity:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px;flex-shrink:0}
+.note-item:hover .delete-btn{opacity:1}
+.relevance-badge{font-size:9px;padding:0 5px;border-radius:8px;flex-shrink:0;font-weight:600}
+.rel-high{background:var(--green);color:var(--bg-primary)}
+.rel-mid{background:var(--yellow);color:var(--bg-primary)}
+.rel-low{background:var(--surface1);color:var(--text-secondary)}
+
+/* Content */
+#content-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* Graph */
+#graph-container{height:45%;position:relative;border-bottom:1px solid var(--border);background:#0d0d15}
+#graph-container canvas{display:block}
+#graph-container.fullscreen{position:fixed;top:0;left:0;right:0;bottom:0;height:100%!important;z-index:1000}
+#graph-controls{position:absolute;top:6px;right:6px;display:flex;gap:3px;z-index:10}
+#graph-info{position:absolute;bottom:6px;left:8px;font-size:10px;color:var(--text-secondary);pointer-events:none;opacity:.6}
+#node-tooltip{position:absolute;background:var(--bg-secondary);color:var(--text-primary);padding:8px 12px;border-radius:8px;font-size:12px;pointer-events:none;display:none;border:1px solid var(--border);z-index:10;box-shadow:0 4px 20px rgba(0,0,0,.6);max-width:220px}
+.tooltip-title{font-weight:600;margin-bottom:2px}.tooltip-tags{font-size:10px;color:var(--teal)}.tooltip-links{font-size:10px;color:var(--text-secondary);margin-top:2px}.tooltip-preview{font-size:10px;color:var(--text-secondary);margin-top:4px;max-height:40px;overflow:hidden}
+#graph-settings{position:absolute;top:36px;right:6px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:12px;width:200px;display:none;z-index:20;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+#graph-settings.visible{display:block}
+.gs-title{font-size:11px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;text-transform:uppercase}
+.gs-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px}
+.gs-row label{color:var(--text-secondary)}
+.gs-row input[type=range]{width:90px;accent-color:var(--accent)}
+.gs-row input[type=checkbox]{accent-color:var(--accent)}
+#graph-legend{position:absolute;bottom:6px;right:8px;display:flex;gap:8px;font-size:9px;color:var(--text-secondary);pointer-events:none;opacity:.7}
+.legend-item{display:flex;align-items:center;gap:3px}.legend-dot{width:6px;height:6px;border-radius:50%}
+#link-indicator{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--accent);color:var(--bg-primary);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;display:none;z-index:20;pointer-events:none}
+
+/* Resize */
+#resize-handle{height:5px;background:var(--bg-secondary);cursor:ns-resize;display:flex;align-items:center;justify-content:center}
+#resize-handle::after{content:'';width:40px;height:3px;background:var(--border);border-radius:2px}
+
+/* Editor */
+#editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#editor-toolbar{display:none;align-items:center;padding:5px 14px;gap:6px;background:var(--bg-secondary);border-bottom:1px solid var(--border)}
+#editor-toolbar.visible{display:flex}
+#note-title-input{background:transparent;border:none;color:var(--text-primary);font-size:15px;font-weight:600;outline:none;flex:1;min-width:0}
+#note-title-input::placeholder{color:var(--text-secondary)}
+#editor-tabs{display:flex;gap:3px}
+.tab-btn{background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-secondary);padding:3px 9px;border-radius:4px;cursor:pointer;font-size:11px;transition:all .1s}
+.tab-btn.active{background:var(--accent);color:var(--bg-primary);border-color:var(--accent)}
+#editor-meta{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text-secondary)}
+#word-count{white-space:nowrap}
+#editor-content{flex:1;display:flex;overflow:hidden}
+#editor-wrapper{flex:1;position:relative;overflow:hidden;display:flex}
+#note-editor{flex:1;background:var(--bg-primary);color:var(--text-primary);border:none;padding:14px 18px;font-family:'Consolas','Meiryo',monospace;font-size:14px;line-height:1.7;resize:none;outline:none;tab-size:2;display:none;user-select:text}
+#note-preview{flex:1;padding:14px 18px;overflow-y:auto;display:none;line-height:1.7;font-size:14px;user-select:text}
+#note-preview h1{font-size:22px;margin:12px 0 6px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:3px}
+#note-preview h2{font-size:18px;margin:10px 0 4px;color:var(--accent)}
+#note-preview h3{font-size:15px;margin:8px 0 3px;color:var(--mauve)}
+#note-preview p{margin:5px 0}
+#note-preview code{background:var(--bg-tertiary);padding:2px 5px;border-radius:3px;font-family:'Consolas',monospace;font-size:13px}
+#note-preview pre{background:var(--bg-secondary);padding:10px;border-radius:6px;overflow-x:auto;margin:6px 0}
+#note-preview pre code{background:none;padding:0}
+#note-preview a,.note-link{color:var(--accent);text-decoration:none;cursor:pointer}
+#note-preview a:hover,.note-link:hover{text-decoration:underline}
+#note-preview ul,#note-preview ol{padding-left:22px;margin:5px 0}
+#note-preview blockquote{border-left:3px solid var(--accent);padding-left:10px;color:var(--text-secondary);margin:6px 0}
+#note-preview strong{color:var(--yellow)}
+#note-preview em{color:var(--mauve)}
+#note-preview hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.preview-tag{color:var(--teal);font-size:13px;cursor:pointer}
+.preview-tag:hover{text-decoration:underline}
+.split-divider{width:1px;background:var(--border);flex-shrink:0}
+
+/* Backlinks */
+#backlinks-panel{width:200px;background:var(--bg-secondary);border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;display:none}
+#backlinks-panel.visible{display:flex;flex-direction:column}
+#backlinks-header{padding:8px 10px;font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.backlink-item{padding:7px 10px;cursor:pointer;font-size:12px;border-left:3px solid transparent;transition:all .1s}
+.backlink-item:hover{background:var(--bg-tertiary);border-left-color:var(--mauve)}
+.backlink-context{font-size:10px;color:var(--text-secondary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Empty State */
+#empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);gap:10px}
+#empty-state .icon{font-size:40px;opacity:.3}
+#empty-state p{font-size:13px}
+.shortcut-hints{margin-top:14px;display:flex;flex-direction:column;gap:5px;font-size:11px}
+.shortcut-hint{display:flex;gap:8px;align-items:center}
+.shortcut-key{background:var(--bg-tertiary);padding:2px 7px;border-radius:4px;font-family:monospace;font-size:10px;border:1px solid var(--border)}
+
+/* Context Menu */
+#context-menu{position:fixed;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:4px;min-width:160px;z-index:3000;box-shadow:0 6px 24px rgba(0,0,0,.6);display:none}
+.ctx-item{padding:7px 12px;cursor:pointer;font-size:12px;border-radius:4px;display:flex;justify-content:space-between;align-items:center}
+.ctx-item:hover{background:var(--bg-tertiary)}
+.ctx-sep{height:1px;background:var(--border);margin:3px 8px}
+
+/* Buttons */
+.btn{background:var(--accent);color:var(--bg-primary);border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;transition:background .12s}
+.btn:hover{background:var(--accent-hover)}
+.btn-sm{padding:3px 7px;font-size:10px}
+.btn-icon{background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid var(--border);width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:pointer;font-size:13px;transition:all .1s}
+.btn-icon:hover{background:var(--border);color:var(--text-primary)}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text-secondary);padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px}
+.btn-ghost:hover{background:var(--bg-tertiary);color:var(--text-primary)}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:2000}
+.modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:18px;min-width:380px;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.modal h3{margin-bottom:10px;color:var(--accent);font-size:15px}
+.modal textarea,.modal input[type=text]{width:100%;background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:5px;padding:8px;font-family:monospace;font-size:12px;outline:none}
+.modal textarea{height:180px;resize:vertical}
+.modal-actions{display:flex;gap:6px;margin-top:10px;justify-content:flex-end}
+
+/* Command Palette */
+#command-palette{position:fixed;top:14%;left:50%;transform:translateX(-50%);width:460px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:2001;display:none;overflow:hidden}
+#command-palette-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:2000;display:none}
+#command-palette input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text-primary);padding:12px 14px;font-size:14px;outline:none}
+#command-palette input::placeholder{color:var(--text-secondary)}
+#command-results{max-height:280px;overflow-y:auto}
+.command-item{padding:9px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.command-item:hover,.command-item.selected{background:var(--bg-tertiary)}
+.command-item .cmd-shortcut{font-size:10px;color:var(--text-secondary);font-family:monospace}
+
+/* Autocomplete */
+#autocomplete{position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;max-height:150px;overflow-y:auto;display:none;z-index:100;min-width:170px;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.autocomplete-item{padding:6px 10px;cursor:pointer;font-size:12px}
+.autocomplete-item:hover,.autocomplete-item.selected{background:var(--bg-tertiary);color:var(--accent)}
+
+/* Color Picker */
+#color-picker-popup{position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:10px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.5);display:none}
+.cp-title{font-size:11px;color:var(--text-secondary);margin-bottom:6px;font-weight:600}
+.cp-swatches{display:flex;flex-wrap:wrap;gap:5px;max-width:170px}
+.cp-swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .1s}
+.cp-swatch:hover{transform:scale(1.2)}.cp-swatch.active{border-color:#fff}
+.cp-custom{display:flex;align-items:center;gap:6px;margin-top:8px}
+.cp-custom input[type=color]{width:28px;height:28px;border:none;background:none;cursor:pointer;border-radius:4px;padding:0}
+.cp-reset{font-size:10px;color:var(--text-secondary);cursor:pointer;margin-top:6px}.cp-reset:hover{color:var(--accent)}
+#note-color-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);cursor:pointer;flex-shrink:0}
+
+/* Book Search */
+#book-search-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:3000}
+#book-search-modal.visible{display:flex}
+.bsm{background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;width:620px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+#book-search-input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text-primary);padding:14px 16px;font-size:14px;outline:none;user-select:text;-webkit-user-select:text}
+#book-search-input::placeholder{color:var(--text-secondary)}
+#book-results{flex:1;overflow-y:auto;padding:4px 0;max-height:60vh}
+.book-item{display:flex;gap:12px;padding:12px 14px;cursor:pointer;transition:background .1s;border-bottom:1px solid var(--border)}
+.book-item:hover{background:var(--bg-tertiary)}
+.book-cover{width:64px;height:92px;border-radius:4px;flex-shrink:0;background:var(--bg-tertiary);object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.book-info{flex:1;min-width:0}
+.book-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+.book-author{font-size:11px;color:var(--accent);margin-bottom:3px}
+.book-meta{font-size:10px;color:var(--text-secondary);margin-bottom:2px}
+.book-isbn{font-size:10px;color:var(--text-secondary);font-family:monospace;margin-bottom:2px}
+.book-categories{font-size:10px;color:var(--teal);margin-bottom:2px}
+.book-rating{font-size:10px;color:var(--yellow);margin-bottom:2px}
+.book-lang{font-size:9px;color:var(--text-secondary);display:inline-block;background:var(--bg-tertiary);padding:0 5px;border-radius:8px;margin-bottom:2px}
+.book-series{font-size:10px;color:var(--mauve);font-weight:600;margin-bottom:2px}
+.book-price{font-size:10px;color:var(--peach);margin-bottom:2px}
+.book-source{font-size:8px;display:inline-block;padding:0 5px;border-radius:8px;margin-bottom:2px;font-weight:600}
+.book-source.src-ndl{background:rgba(166,227,161,0.15);color:var(--green)}
+.book-source.src-google{background:rgba(137,180,250,0.15);color:var(--accent)}
+.book-section-header{padding:8px 14px;font-size:11px;color:var(--text-secondary);font-weight:600;border-bottom:1px solid var(--border);background:var(--bg-primary);display:flex;align-items:center;gap:6px}
+.book-desc{font-size:10px;color:var(--text-secondary);margin-top:3px;max-height:48px;overflow:hidden;line-height:1.4}
+.book-insert-btns{display:flex;gap:4px;margin-top:5px}
+.book-insert-btn{font-size:9px;padding:2px 6px;border-radius:3px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-secondary);cursor:pointer}
+.book-insert-btn:hover{background:var(--accent);color:var(--bg-primary);border-color:var(--accent)}
+.recent-books-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+.recent-books-clear{font-size:10px;color:var(--text-secondary);cursor:pointer;background:none;border:none;text-transform:none;letter-spacing:0;font-weight:400}
+.recent-books-clear:hover{color:var(--red)}
+
+/* Google Setup */
+#google-setup{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:3000}
+#google-setup.visible{display:flex}
+.setup-modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:28px;width:480px;max-height:85vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.setup-modal h3{color:var(--accent);font-size:18px;margin-bottom:4px}
+.setup-subtitle{font-size:12px;color:var(--text-secondary);margin-bottom:16px}
+.setup-steps{counter-reset:step}
+.setup-step{position:relative;padding:10px 12px 10px 40px;margin:6px 0;background:var(--bg-tertiary);border-radius:8px;font-size:12px;line-height:1.6;color:var(--text-primary)}
+.setup-step::before{counter-increment:step;content:counter(step);position:absolute;left:10px;top:10px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--bg-primary);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.setup-step a{color:var(--accent);text-decoration:none}.setup-step a:hover{text-decoration:underline}
+.setup-note{font-size:10px;color:var(--text-secondary);margin-top:8px;line-height:1.5}
+
+/* Toast */
+#toast-container{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:6px;z-index:5000}
+.toast{background:var(--bg-secondary);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.4);animation:toastIn .3s ease,toastOut .3s ease 2.7s forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(-10px)}}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ===== Mobile ===== */
+#mobile-menu-btn{display:none}
+.mobile-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:499;display:none}
+.mobile-overlay.visible{display:block}
+@media(max-width:768px){
+  body{padding-top:env(safe-area-inset-top)}
+  #header{height:auto;flex-wrap:wrap;padding:6px 10px;gap:6px}
+  #header h1{font-size:13px}
+  #stats-bar{display:none}
+  #search-input{width:100%;order:10}
+  #header-actions{flex-wrap:wrap;gap:4px}
+  #mobile-menu-btn{display:flex!important}
+  #sidebar{position:fixed;left:0;top:42px;bottom:0;z-index:500;width:260px;transform:translateX(-100%);transition:transform .2s}
+  #sidebar.mobile-open{transform:translateX(0)}
+  #sidebar.collapsed{transform:translateX(-100%)}
+  #main{flex-direction:column}
+  #content-area{flex:1}
+  #graph-container{height:35%!important}
+  #editor-toolbar{flex-wrap:wrap;gap:4px;padding:5px 8px}
+  #note-title-input{font-size:14px;width:100%;order:-1}
+  #editor-tabs{order:10}
+  #editor-meta{order:11}
+  #note-editor{font-size:16px;padding:10px 12px;-webkit-text-size-adjust:100%}
+  #note-preview{padding:10px 12px}
+  #backlinks-panel{position:fixed;right:0;top:42px;bottom:0;z-index:500;width:240px;transform:translateX(100%);transition:transform .2s}
+  #backlinks-panel.visible{transform:translateX(0)}
+  #command-palette{width:90%;left:5%;transform:none}
+  .bsm{width:95vw}
+  .setup-modal{width:90vw;padding:16px}
+  #google-login-btn{font-size:10px;height:28px;padding:0 8px 0 2px}
+  .btn-icon{width:28px;height:28px}
+}
+@media(max-width:480px){
+  #graph-container{height:30%!important}
+  #editor-toolbar .btn-icon{width:24px;height:24px;font-size:11px}
+  #note-color-dot{width:12px;height:12px}
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1><span class="logo">G</span>3D Graph Notes</h1>
+  <div id="stats-bar">
+    <span class="stat-item"><span class="stat-dot" style="background:var(--accent)"></span><span id="stat-notes">0</span> ノート</span>
+    <span class="stat-item"><span class="stat-dot" style="background:var(--green)"></span><span id="stat-links">0</span> リンク</span>
+    <span class="stat-item"><span class="stat-dot" style="background:var(--teal)"></span><span id="stat-tags">0</span> タグ</span>
+  </div>
+  <button id="mobile-menu-btn" class="btn-icon" onclick="toggleMobileSidebar()" style="font-size:16px">&#9776;</button>
+  <div id="header-actions">
+    <input type="text" id="search-input" placeholder="検索 (Ctrl+F)">
+    <button class="btn-icon" onclick="createDailyNote()" title="デイリーノート">&#128197;</button>
+    <button class="btn-icon" onclick="toggleCommandPalette()" title="コマンド">&#9776;</button>
+    <button class="btn-icon" onclick="showExportModal()" title="エクスポート">&#8615;</button>
+    <button class="btn-icon" onclick="showImportModal()" title="インポート">&#8613;</button>
+    <div id="auth-area">
+      <div id="sync-indicator"><span class="sync-dot"></span><span id="sync-text"></span></div>
+      <button id="google-login-btn" onclick="googleLogin()">
+        <span class="g-logo"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg></span>
+        ログイン
+      </button>
+      <div id="user-info">
+        <img id="user-avatar" src="" alt="">
+        <span id="user-name"></span>
+        <button id="logout-btn" onclick="googleLogout()" title="ログアウト">&#10005;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="google-setup">
+  <div class="setup-modal">
+    <h3>Googleログインの初期設定</h3>
+    <p class="setup-subtitle">初回のみ。次からはワンクリックでログインできます。</p>
+    <div class="setup-steps">
+      <div class="setup-step"><a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> → 「+ 認証情報を作成」→「OAuthクライアントID」</div>
+      <div class="setup-step">種類「ウェブ アプリケーション」→ JS生成元に <code style="color:var(--accent)">http://localhost</code> を追加 → 作成</div>
+      <div class="setup-step">表示されるクライアントIDを下に貼り付けて「接続」</div>
+    </div>
+    <input type="text" id="google-client-id-input" placeholder="xxxx.apps.googleusercontent.com" style="margin-top:12px;font-family:monospace">
+    <p class="setup-note">※ PC内に保存されます。外部には送信しません。</p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="document.getElementById('google-setup').classList.remove('visible')">あとで</button>
+      <button class="btn" onclick="saveGoogleClientId()">接続</button>
+    </div>
+  </div>
+</div>
+
+<div id="command-palette-overlay" onclick="closeCommandPalette()"></div>
+<div id="command-palette">
+  <input type="text" id="command-input" placeholder="コマンドまたはノート名...">
+  <div id="command-results"></div>
+</div>
+
+<div id="context-menu"></div>
+<div id="toast-container"></div>
+
+<div id="book-search-modal">
+  <div class="bsm">
+    <input type="text" id="book-search-input" placeholder="書籍名・著者名・ISBNで検索...">
+    <div id="book-results"><div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div></div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span id="sidebar-title">ノート一覧</span>
+      <div style="display:flex;gap:3px">
+        <button class="btn-icon" onclick="toggleSortMode()" title="並び替え" id="sort-btn" style="font-size:11px;width:24px;height:24px">&#9650;</button>
+        <button class="btn btn-sm" onclick="createNewNote()" title="Ctrl+N">+ 新規</button>
+      </div>
+    </div>
+    <div id="sort-bar">
+      <button class="tag-pill active" onclick="setSortMode('updated')" data-sort="updated">更新順</button>
+      <button class="tag-pill" onclick="setSortMode('relevance')" data-sort="relevance">関連度順</button>
+      <button class="tag-pill" onclick="setSortMode('links')" data-sort="links">リンク数順</button>
+      <button class="tag-pill" onclick="setSortMode('alpha')" data-sort="alpha">名前順</button>
+    </div>
+    <div id="tag-filter"></div>
+    <div id="note-list"></div>
+  </div>
+
+  <div id="content-area">
+    <div id="graph-container">
+      <div id="node-tooltip"></div>
+      <div id="link-indicator">リンクを作成</div>
+      <div id="graph-controls">
+        <button class="btn-icon" onclick="resetCamera()" title="リセット">&#8634;</button>
+        <button class="btn-icon" onclick="toggleGraphSettings()" title="設定">&#9881;</button>
+        <button class="btn-icon" onclick="toggleFullscreen()" title="全画面">&#9974;</button>
+      </div>
+      <div id="graph-settings">
+        <div class="gs-title">グラフ設定</div>
+        <div class="gs-row"><label>反発力</label><input type="range" min="200" max="3000" value="1000" id="gs-repulsion"></div>
+        <div class="gs-row"><label>引力</label><input type="range" min="1" max="20" value="6" id="gs-attraction"></div>
+        <div class="gs-row"><label>距離</label><input type="range" min="20" max="120" value="55" id="gs-distance"></div>
+        <div class="gs-row"><label>ラベル</label><input type="checkbox" checked id="gs-labels"></div>
+        <div class="gs-row"><label>パーティクル</label><input type="checkbox" checked id="gs-particles"></div>
+        <div class="gs-row"><label>自動回転</label><input type="checkbox" checked id="gs-autorotate"></div>
+        <button class="btn btn-sm" onclick="applyGraphSettings()" style="width:100%;margin-top:6px">適用</button>
+      </div>
+      <div id="graph-info">ドラッグ: 回転 / ノード移動 / Shift+ドラッグ: リンク作成</div>
+      <div id="graph-legend"></div>
+    </div>
+    <div id="resize-handle"></div>
+    <div id="editor-area">
+      <div id="editor-toolbar">
+        <input type="text" id="note-title-input" placeholder="タイトル...">
+        <div id="editor-tabs">
+          <button class="tab-btn active" onclick="switchTab('edit')">編集</button>
+          <button class="tab-btn" onclick="switchTab('preview')">表示</button>
+          <button class="tab-btn" onclick="switchTab('split')">分割</button>
+        </div>
+        <div id="editor-meta"><span id="word-count">0文字</span></div>
+        <button class="btn-icon" onclick="openBookSearch()" title="書籍検索 (Ctrl+Shift+B)" style="font-size:11px">&#128218;</button>
+        <div style="position:relative;display:inline-block">
+          <div id="note-color-dot" onclick="toggleColorPicker()" title="ノートの色"></div>
+          <div id="color-picker-popup"></div>
+        </div>
+        <button class="btn-icon" onclick="togglePin()" title="ピン留め" id="pin-btn" style="font-size:11px">&#128204;</button>
+        <button class="btn-icon" onclick="toggleBacklinks()" title="バックリンク">&#128279;</button>
+        <button class="btn-icon" id="undo-btn" onclick="undo()" title="元に戻す (Ctrl+Z)" style="font-size:13px;opacity:0.3">&#8630;</button>
+        <button class="btn-icon" id="redo-btn" onclick="redo()" title="やり直す (Ctrl+Y)" style="font-size:13px;opacity:0.3">&#8631;</button>
+      </div>
+      <div id="editor-content">
+        <div id="editor-wrapper">
+          <div id="empty-state">
+            <div class="icon">&#128209;</div>
+            <p>ノートを選択するか新規作成</p>
+            <button class="btn" onclick="createNewNote()">+ 新規ノート</button>
+            <div class="shortcut-hints">
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+N</span>新規</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+D</span>デイリー</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+S</span>保存</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+Z</span>元に戻す</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+Y</span>やり直す</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+E</span>編集/表示切替</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+Shift+D</span>ノート複製</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+Shift+B</span>書籍検索</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+F</span>検索</div>
+              <div class="shortcut-hint"><span class="shortcut-key">Ctrl+P</span>コマンド</div>
+              <div class="shortcut-hint"><span class="shortcut-key">F2</span>タイトル編集</div>
+            </div>
+          </div>
+          <textarea id="note-editor" placeholder="ノートを入力... [[ノート名]] でリンク / #タグ"></textarea>
+          <div class="split-divider" id="split-divider" style="display:none"></div>
+          <div id="note-preview"></div>
+        </div>
+        <div id="backlinks-panel">
+          <div id="backlinks-header"><span>バックリンク</span><span id="backlink-count">0</span></div>
+          <div id="backlinks-list"></div>
+        </div>
+      </div>
+      <div id="autocomplete"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// ==========================================
+// Google Auth + Drive Sync
+// ==========================================
+const CLIENT_ID_KEY='3d-graph-notes-gcid';
+const EMBEDDED_CLIENT_ID='271621053995-gsaee8hokkdulerr7rlf3lhs5o5irl0g.apps.googleusercontent.com';
+const DRIVE_FILE_NAME='3d-graph-notes-sync.json';
+let accessToken=null,currentUser=null,tokenClient=null;
+function getStoredClientId(){return localStorage.getItem(CLIENT_ID_KEY)||EMBEDDED_CLIENT_ID}
+function updateAuthUI(){
+  const l=document.getElementById('google-login-btn'),u=document.getElementById('user-info');
+  if(currentUser){l.style.display='none';u.style.display='flex';const a=document.getElementById('user-avatar');a.src=currentUser.picture||'';a.onerror=()=>{a.style.display='none'};document.getElementById('user-name').textContent=currentUser.name||''}
+  else{l.style.display='flex';u.style.display='none'}
+}
+function setSyncStatus(s,t){const e=document.getElementById('sync-indicator'),d=e.querySelector('.sync-dot'),x=document.getElementById('sync-text');e.className=s;x.textContent=t;d.className='sync-dot'+(s==='syncing'?' pulse':'')}
+window.googleLogin=async function(){
+  const cid=getStoredClientId();
+  if(!cid){document.getElementById('google-setup').classList.add('visible');return}
+  setSyncStatus('syncing','接続中...');
+  if(window.electronAPI&&window.electronAPI.isElectron){
+    try{const r=await window.electronAPI.googleOAuth(cid);if(r.error==='closed'){setSyncStatus('','');return}if(r.error){setSyncStatus('error','エラー');showToast('認証エラー: '+r.error);return}if(r.accessToken){accessToken=r.accessToken;await fetchUserAndSync()}}catch(e){setSyncStatus('error','エラー')}
+  }else{
+    if(typeof google==='undefined'||!google.accounts){showToast('Google SDK読み込み中...');setSyncStatus('','');return}
+    if(!tokenClient){tokenClient=google.accounts.oauth2.initTokenClient({client_id:cid,scope:'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',callback:async function(r){if(r.error){setSyncStatus('error','エラー');return}accessToken=r.access_token;await fetchUserAndSync()}})}
+    tokenClient.requestAccessToken({prompt:'select_account'});
+  }
+};
+async function fetchUserAndSync(){
+  try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});currentUser=await r.json();updateAuthUI();showToast((currentUser.name||'')+'でログイン');await downloadFromDrive()}catch(e){setSyncStatus('error','エラー')}
+}
+window.googleLogout=function(){if(!accessToken)return;if(!confirm('ログアウトしますか？'))return;try{if(google&&google.accounts)google.accounts.oauth2.revoke(accessToken)}catch(e){}accessToken=null;currentUser=null;tokenClient=null;updateAuthUI();setSyncStatus('','');showToast('ログアウトしました')};
+window.saveGoogleClientId=function(){const id=document.getElementById('google-client-id-input').value.trim();if(!id||!id.includes('.apps.googleusercontent.com')){alert('正しいクライアントIDを入力してください');return}localStorage.setItem(CLIENT_ID_KEY,id);document.getElementById('google-setup').classList.remove('visible');showToast('設定保存。ログインしてください。')};
+async function driveRequest(u,o={}){const r=await fetch(u,{...o,headers:{Authorization:'Bearer '+accessToken,...(o.headers||{})}});if(!r.ok)throw new Error('Drive '+r.status);return r}
+async function findDriveFile(){const r=await driveRequest(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${DRIVE_FILE_NAME}'&fields=files(id)`);const d=await r.json();return d.files&&d.files[0]?d.files[0]:null}
+async function downloadFromDrive(){
+  setSyncStatus('syncing','同期中...');
+  try{const f=await findDriveFile();if(f){const r=await driveRequest(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`);const cn=await r.json();const ln=loadNotes();const m={...ln};Object.entries(cn).forEach(([id,c])=>{if(!m[id]||(c.updated&&(!m[id].updated||c.updated>m[id].updated)))m[id]=c});Object.keys(notes).forEach(k=>delete notes[k]);Object.assign(notes,m);saveNotesLocal();renderNoteList();updateGraph();updateStats();setSyncStatus('synced','同期済')}else{await uploadToDrive()}}
+  catch(e){console.error(e);setSyncStatus('error','同期エラー')}
+}
+async function uploadToDrive(){
+  if(!accessToken)return;setSyncStatus('syncing','保存中...');
+  try{const d={};Object.values(notes).forEach(n=>{d[n.id]={id:n.id,title:n.title,content:n.content,pinned:n.pinned||false,color:n.color||null,created:n.created||Date.now(),updated:n.updated||Date.now()}});const body=JSON.stringify(d);const f=await findDriveFile();
+  if(f){await driveRequest(`https://www.googleapis.com/upload/drive/v3/files/${f.id}?uploadType=media`,{method:'PATCH',headers:{'Content-Type':'application/json'},body})}
+  else{const meta={name:DRIVE_FILE_NAME,parents:['appDataFolder']};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',new Blob([body],{type:'application/json'}));await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:'Bearer '+accessToken},body:form})}
+  setSyncStatus('synced','同期済')}catch(e){console.error(e);setSyncStatus('error','保存エラー')}
+}
+let cloudSaveTimer=null;function scheduleCloudSave(){if(!accessToken)return;clearTimeout(cloudSaveTimer);setSyncStatus('syncing','...');cloudSaveTimer=setTimeout(()=>uploadToDrive(),2000)}
+
+// ==========================================
+// Data
+// ==========================================
+const STORAGE_KEY='3d-graph-notes';
+function loadNotes(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{}}catch{return{}}}
+function saveNotesLocal(){localStorage.setItem(STORAGE_KEY,JSON.stringify(notes))}
+function saveNotes(){saveNotesLocal();scheduleCloudSave()}
+let notes=loadNotes();
+let activeNoteId=null,activeTagFilter=null,currentTab='edit',sortMode='updated';
+
+function generateId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function showToast(m){const c=document.getElementById('toast-container'),t=document.createElement('div');t.className='toast';t.textContent=m;c.appendChild(t);setTimeout(()=>t.remove(),3000)}
+function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ==========================================
+// Notes CRUD
+// ==========================================
+function createNewNote(){pushUndo();const id=generateId();notes[id]={id,title:'無題のノート',content:'',pinned:false,created:Date.now(),updated:Date.now()};saveNotes();setActiveNote(id);renderNoteList();updateGraph();document.getElementById('note-title-input').select();closeCommandPalette()}
+function createDailyNote(){const t=new Date(),title=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;const ex=findNoteByTitle(title);if(ex){setActiveNote(ex.id);return}pushUndo();const id=generateId(),dow=['日','月','火','水','木','金','土'][t.getDay()];notes[id]={id,title,pinned:false,content:`# ${title}（${dow}）\n\n## タスク\n- [ ] \n\n## メモ\n\n#daily`,created:Date.now(),updated:Date.now()};saveNotes();setActiveNote(id);renderNoteList();updateGraph();showToast('デイリーノート作成');closeCommandPalette()}
+let undoStack=[],redoStack=[];
+function snapshotAll(){return{notes:JSON.parse(JSON.stringify(notes)),activeNoteId}}
+function pushUndo(){undoStack.push(snapshotAll());if(undoStack.length>50)undoStack.shift();redoStack=[];updateUndoRedoBtn()}
+function undo(){if(!undoStack.length)return;redoStack.push(snapshotAll());const s=undoStack.pop();Object.keys(notes).forEach(k=>delete notes[k]);Object.assign(notes,s.notes);saveNotesLocal();scheduleCloudSave();if(s.activeNoteId&&notes[s.activeNoteId]){setActiveNote(s.activeNoteId)}else{activeNoteId=null;showEmptyState()}renderNoteList();updateGraph();updateStats();showToast('元に戻しました');updateUndoRedoBtn()}
+function redo(){if(!redoStack.length)return;undoStack.push(snapshotAll());const s=redoStack.pop();Object.keys(notes).forEach(k=>delete notes[k]);Object.assign(notes,s.notes);saveNotesLocal();scheduleCloudSave();if(s.activeNoteId&&notes[s.activeNoteId]){setActiveNote(s.activeNoteId)}else{activeNoteId=null;showEmptyState()}renderNoteList();updateGraph();updateStats();showToast('やり直しました');updateUndoRedoBtn()}
+function updateUndoRedoBtn(){const u=document.getElementById('undo-btn'),r=document.getElementById('redo-btn');if(u)u.style.opacity=undoStack.length?'1':'0.3';if(r)r.style.opacity=redoStack.length?'1':'0.3'}
+function deleteNote(id,e){if(e)e.stopPropagation();pushUndo();delete notes[id];saveNotes();if(activeNoteId===id){activeNoteId=null;showEmptyState()}renderNoteList();updateGraph();updateStats()}
+function setActiveNote(id){activeNoteId=id;const n=notes[id];if(!n)return;document.getElementById('empty-state').style.display='none';document.getElementById('editor-toolbar').classList.add('visible');document.getElementById('note-title-input').value=n.title;document.getElementById('note-editor').value=n.content;updatePinButton();updateColorDot();updateWordCount();switchTab(currentTab);renderNoteList();renderBacklinks();updateStats()}
+function showEmptyState(){document.getElementById('empty-state').style.display='flex';document.getElementById('editor-toolbar').classList.remove('visible');document.getElementById('note-editor').style.display='none';document.getElementById('note-preview').style.display='none';document.getElementById('split-divider').style.display='none';document.getElementById('backlinks-panel').classList.remove('visible')}
+function togglePin(){if(!activeNoteId)return;pushUndo();notes[activeNoteId].pinned=!notes[activeNoteId].pinned;saveNotes();updatePinButton();renderNoteList();showToast(notes[activeNoteId].pinned?'ピン留め':'ピン解除')}
+function updatePinButton(){const b=document.getElementById('pin-btn');if(activeNoteId&&notes[activeNoteId]?.pinned){b.style.color='var(--yellow)';b.style.borderColor='var(--yellow)'}else{b.style.color='';b.style.borderColor=''}}
+function updateWordCount(){if(!activeNoteId)return;const c=notes[activeNoteId].content;document.getElementById('word-count').textContent=`${c.length}文字 / ${(c?c.split('\n').length:0)}行`}
+
+// Color Picker
+const COLOR_PRESETS=['#89b4fa','#74c7ec','#89dceb','#94e2d5','#a6e3a1','#f9e2af','#fab387','#f38ba8','#f5c2e7','#cba6f7','#b4befe','#6c7086','#ffffff','#ff6b6b','#51cf66'];
+function toggleColorPicker(){const p=document.getElementById('color-picker-popup');if(p.style.display==='block'){p.style.display='none';return}if(!activeNoteId)return;const cc=notes[activeNoteId].color||'';p.innerHTML=`<div class="cp-title">ノードの色</div><div class="cp-swatches">${COLOR_PRESETS.map(c=>`<div class="cp-swatch ${cc===c?'active':''}" style="background:${c}" onclick="setNoteColor('${c}')"></div>`).join('')}</div><div class="cp-custom"><input type="color" value="${cc||'#89b4fa'}" onchange="setNoteColor(this.value)"><span style="font-size:11px;color:var(--text-secondary)">カスタム</span></div><div class="cp-reset" onclick="setNoteColor(null)">リセット</div>`;p.style.display='block'}
+function setNoteColor(c){if(!activeNoteId)return;pushUndo();if(c)notes[activeNoteId].color=c;else delete notes[activeNoteId].color;saveNotes();updateColorDot();updateGraph();document.getElementById('color-picker-popup').style.display='none'}
+function updateColorDot(){const d=document.getElementById('note-color-dot');if(!activeNoteId){d.style.background='var(--surface2)';return}const n=notes[activeNoteId];d.style.background=n.color||'#'+getNodeColor(activeNoteId).toString(16).padStart(6,'0');d.style.borderColor=n.color?n.color:'var(--border)'}
+document.addEventListener('click',e=>{const p=document.getElementById('color-picker-popup'),d=document.getElementById('note-color-dot');if(p.style.display==='block'&&!p.contains(e.target)&&e.target!==d)p.style.display='none'});
+
+// ==========================================
+// Tags
+// ==========================================
+function extractTags(c){const r=/(?:^|[\s。、．，）\)」』】｝\]}])#([^\s#\[\]<>]+)/g,t=[];let m;while((m=r.exec(c))!==null)if(!/^\d+$/.test(m[1]))t.push(m[1]);return[...new Set(t)]}
+function getAllTags(){const s=new Set();Object.values(notes).forEach(n=>extractTags(n.content).forEach(t=>s.add(t)));return[...s].sort()}
+const TAG_COLORS=['#94e2d5','#89dceb','#a6e3a1','#f9e2af','#fab387','#f5c2e7','#cba6f7','#89b4fa','#f38ba8','#74c7ec'];
+function getTagColor(t){let h=0;for(let i=0;i<t.length;i++)h=((h<<5)-h)+t.charCodeAt(i);return TAG_COLORS[Math.abs(h)%TAG_COLORS.length]}
+function renderTagFilter(){const c=document.getElementById('tag-filter'),t=getAllTags();if(!t.length){c.classList.remove('visible');return}c.classList.add('visible');c.innerHTML=t.map(tg=>`<span class="tag-pill ${activeTagFilter===tg?'active':''}" style="color:${activeTagFilter===tg?'':getTagColor(tg)};${activeTagFilter===tg?'background:'+getTagColor(tg):''}" onclick="filterByTag('${tg}')">#${tg}</span>`).join('')}
+function filterByTag(t){activeTagFilter=activeTagFilter===t?null:t;renderTagFilter();renderNoteList();updateGraph()}
+
+// ==========================================
+// Links
+// ==========================================
+function extractLinks(c){const r=/\[\[([^\]]+)\]\]/g,l=[];let m;while((m=r.exec(c))!==null)l.push(m[1]);return[...new Set(l)]}
+function findNoteByTitle(t){return Object.values(notes).find(n=>n.title===t)}
+function getBacklinks(id){const t=notes[id]?.title;if(!t)return[];return Object.values(notes).filter(n=>n.id!==id&&extractLinks(n.content).includes(t))}
+function getLinkCount(id){return extractLinks(notes[id]?.content||'').filter(t=>findNoteByTitle(t)).length+getBacklinks(id).length}
+function getAllEdges(){const e=[],s=new Set();Object.values(notes).forEach(n=>{extractLinks(n.content).forEach(lt=>{const t=findNoteByTitle(lt);if(t&&t.id!==n.id){const k=[n.id,t.id].sort().join('-');if(!s.has(k)){s.add(k);e.push({source:n.id,target:t.id})}}})});return e}
+function updateStats(){document.getElementById('stat-notes').textContent=Object.keys(notes).length;document.getElementById('stat-links').textContent=getAllEdges().length;document.getElementById('stat-tags').textContent=getAllTags().length}
+
+// ==========================================
+// Relevance
+// ==========================================
+function getRelevanceScore(nid,rid){if(!rid||nid===rid)return 0;const ref=notes[rid],note=notes[nid];if(!ref||!note)return 0;let s=0;const rl=extractLinks(ref.content);if(rl.includes(note.title))s+=10;const nl=extractLinks(note.content);if(nl.includes(ref.title))s+=10;const rt=new Set(rl);nl.forEach(l=>{if(rt.has(l))s+=5});const rbl=getBacklinks(rid).map(n=>n.id),nbl=getBacklinks(nid).map(n=>n.id);rbl.forEach(id=>{if(nbl.includes(id))s+=4});const rtg=new Set(extractTags(ref.content));extractTags(note.content).forEach(t=>{if(rtg.has(t))s+=3});return Math.round(s*10)/10}
+function getRelevanceClass(s){if(s>=8)return'rel-high';if(s>=3)return'rel-mid';return'rel-low'}
+
+// ==========================================
+// Sort & Note List
+// ==========================================
+function toggleSortMode(){document.getElementById('sort-bar').classList.toggle('visible')}
+function setSortMode(m){sortMode=m;document.querySelectorAll('#sort-bar .tag-pill').forEach(b=>b.classList.toggle('active',b.dataset.sort===m));const labels={updated:'ノート一覧',relevance:'関連度順',links:'リンク数順',alpha:'名前順'};document.getElementById('sidebar-title').textContent=labels[m]||'ノート一覧';renderNoteList()}
+function renderNoteList(){
+  const list=document.getElementById('note-list'),q=document.getElementById('search-input').value.toLowerCase();
+  let arr=Object.values(notes);
+  if(q)arr=arr.filter(n=>n.title.toLowerCase().includes(q)||n.content.toLowerCase().includes(q));
+  if(activeTagFilter)arr=arr.filter(n=>extractTags(n.content).includes(activeTagFilter));
+  if(sortMode==='relevance'&&activeNoteId){arr.forEach(n=>{n._rs=getRelevanceScore(n.id,activeNoteId)});arr.sort((a,b)=>b._rs-a._rs)}
+  else if(sortMode==='links')arr.sort((a,b)=>getLinkCount(b.id)-getLinkCount(a.id));
+  else if(sortMode==='alpha')arr.sort((a,b)=>a.title.localeCompare(b.title,'ja'));
+  else arr.sort((a,b)=>b.updated-a.updated);
+  arr.sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
+  list.innerHTML=arr.map(n=>{const lc=getLinkCount(n.id),tags=extractTags(n.content),sr=sortMode==='relevance'&&activeNoteId&&n.id!==activeNoteId,rs=n._rs||0;
+    return`<div class="note-item ${n.id===activeNoteId?'active':''}" onclick="setActiveNote('${n.id}')" oncontextmenu="showNoteContextMenu(event,'${n.id}')">${n.pinned?'<span class="note-item-pin">&#128204;</span>':''}<div class="note-item-left"><span class="note-item-title">${escapeHtml(n.title)}</span>${tags.length?`<div class="note-item-meta">${tags.slice(0,3).map(t=>`<span class="note-item-tag" style="color:${getTagColor(t)}">#${t}</span>`).join('')}</div>`:''}</div>${sr&&rs>0?`<span class="relevance-badge ${getRelevanceClass(rs)}">${rs}</span>`:''}${!sr&&lc?`<span class="note-link-count">${lc}</span>`:''}<button class="delete-btn" onclick="deleteNote('${n.id}',event)">&#10005;</button></div>`}).join('');
+  renderTagFilter();updateStats();
+}
+
+// ==========================================
+// Context Menu
+// ==========================================
+function showNoteContextMenu(e,id){e.preventDefault();const m=document.getElementById('context-menu'),n=notes[id];m.innerHTML=`<div class="ctx-item" onclick="setActiveNote('${id}');hideContextMenu()">開く</div><div class="ctx-item" onclick="notes['${id}'].pinned=!notes['${id}'].pinned;saveNotes();renderNoteList();hideContextMenu()">${n.pinned?'ピン解除':'ピン留め'}</div><div class="ctx-item" onclick="duplicateNote('${id}');hideContextMenu()">複製</div><div class="ctx-sep"></div><div class="ctx-item" style="color:var(--red)" onclick="deleteNote('${id}');hideContextMenu()">削除</div>`;m.style.display='block';m.style.left=Math.min(e.clientX,innerWidth-180)+'px';m.style.top=Math.min(e.clientY,innerHeight-160)+'px'}
+function hideContextMenu(){document.getElementById('context-menu').style.display='none'}
+document.addEventListener('click',hideContextMenu);
+function duplicateNote(id){const s=notes[id];if(!s)return;pushUndo();const nid=generateId();notes[nid]={id:nid,title:s.title+' (コピー)',content:s.content,pinned:false,created:Date.now(),updated:Date.now()};saveNotes();setActiveNote(nid);renderNoteList();updateGraph();showToast('複製しました')}
+
+// ==========================================
+// Backlinks
+// ==========================================
+function renderBacklinks(){if(!activeNoteId)return;const bls=getBacklinks(activeNoteId);document.getElementById('backlink-count').textContent=bls.length;document.getElementById('backlinks-list').innerHTML=bls.map(n=>{const t=notes[activeNoteId].title,i=n.content.indexOf('[['+t+']]'),ctx=i>=0?'...'+n.content.substring(Math.max(0,i-20),i+t.length+24).replace(/\[\[|\]\]/g,'')+'...':'';return`<div class="backlink-item" onclick="setActiveNote('${n.id}')"><div style="color:var(--accent)">${escapeHtml(n.title)}</div>${ctx?`<div class="backlink-context">${escapeHtml(ctx)}</div>`:''}</div>`}).join('')||'<div style="padding:10px;font-size:11px;color:var(--text-secondary)">なし</div>'}
+function toggleBacklinks(){document.getElementById('backlinks-panel').classList.toggle('visible');renderBacklinks()}
+
+// ==========================================
+// Editor
+// ==========================================
+let undoEditTimer=null;
+function scheduleUndoSnapshot(){clearTimeout(undoEditTimer);undoEditTimer=setTimeout(()=>pushUndo(),1000)}
+document.getElementById('note-title-input').addEventListener('focus',()=>{pushUndo()});
+document.getElementById('note-title-input').addEventListener('input',e=>{if(!activeNoteId)return;notes[activeNoteId].title=e.target.value||'無題';notes[activeNoteId].updated=Date.now();saveNotes();renderNoteList();updateGraph()});
+let saveTimer=null;
+document.getElementById('note-editor').addEventListener('focus',()=>{pushUndo()});
+document.getElementById('note-editor').addEventListener('input',e=>{if(!activeNoteId)return;notes[activeNoteId].content=e.target.value;notes[activeNoteId].updated=Date.now();updateWordCount();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveNotes();renderNoteList();updateGraph();renderBacklinks();if(currentTab==='split')renderPreview()},250);handleAutocomplete(e.target)});
+document.getElementById('note-editor').addEventListener('keydown',e=>{const ac=document.getElementById('autocomplete');if(ac.style.display==='block'){const items=ac.querySelectorAll('.autocomplete-item');let sel=ac.querySelector('.selected'),idx=Array.from(items).indexOf(sel);if(e.key==='ArrowDown'){e.preventDefault();if(sel)sel.classList.remove('selected');idx=(idx+1)%items.length;items[idx].classList.add('selected')}else if(e.key==='ArrowUp'){e.preventDefault();if(sel)sel.classList.remove('selected');idx=(idx-1+items.length)%items.length;items[idx].classList.add('selected')}else if(e.key==='Enter'&&sel){e.preventDefault();applyAutocomplete(sel.textContent)}else if(e.key==='Escape')ac.style.display='none'}if(e.key==='Tab'){e.preventDefault();const ta=e.target,s=ta.selectionStart;ta.value=ta.value.substring(0,s)+'  '+ta.value.substring(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+2;ta.dispatchEvent(new Event('input'))}});
+function handleAutocomplete(ta){const ac=document.getElementById('autocomplete'),v=ta.value,p=ta.selectionStart,b=v.substring(0,p),m=b.match(/\[\[([^\]]*?)$/);if(!m){ac.style.display='none';return}const q=m[1].toLowerCase(),cs=Object.values(notes).filter(n=>n.id!==activeNoteId&&n.title.toLowerCase().includes(q)).slice(0,8);if(!cs.length){ac.style.display='none';return}const r=ta.getBoundingClientRect(),ls=b.split('\n');ac.style.left=(r.left+Math.min(ls[ls.length-1].length*8,r.width-190))+'px';ac.style.top=(r.top+(ls.length-1)*22+24)+'px';ac.style.display='block';ac.innerHTML=cs.map((n,i)=>`<div class="autocomplete-item ${i===0?'selected':''}" onclick="applyAutocomplete('${escapeHtml(n.title)}')">${escapeHtml(n.title)}</div>`).join('')}
+function applyAutocomplete(t){const ta=document.getElementById('note-editor'),p=ta.selectionStart,b=ta.value.substring(0,p),a=ta.value.substring(p),m=b.match(/\[\[([^\]]*?)$/);if(!m)return;const nb=b.substring(0,b.length-m[0].length)+'[['+t+']]';ta.value=nb+a;ta.selectionStart=ta.selectionEnd=nb.length;ta.dispatchEvent(new Event('input'));document.getElementById('autocomplete').style.display='none';ta.focus()}
+
+// ==========================================
+// Tab / Preview
+// ==========================================
+function switchTab(t){currentTab=t;const ed=document.getElementById('note-editor'),pv=document.getElementById('note-preview'),dv=document.getElementById('split-divider'),tabs=document.querySelectorAll('.tab-btn');tabs.forEach(b=>b.classList.remove('active'));if(t==='edit'){ed.style.display='block';pv.style.display='none';dv.style.display='none';tabs[0].classList.add('active')}else if(t==='preview'){ed.style.display='none';pv.style.display='block';dv.style.display='none';tabs[1].classList.add('active');renderPreview()}else{ed.style.display='block';pv.style.display='block';dv.style.display='block';tabs[2].classList.add('active');renderPreview()}}
+function renderPreview(){if(!activeNoteId)return;let h=escapeHtml(notes[activeNoteId].content);h=h.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>');h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/~~(.+?)~~/g,'<del style="opacity:.5">$1</del>');h=h.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>').replace(/`([^`]+)`/g,'<code>$1</code>');h=h.replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^---$/gm,'<hr>');h=h.replace(/^- \[x\] (.+)$/gm,'<li><input type="checkbox" checked disabled>$1</li>').replace(/^- \[ \] (.+)$/gm,'<li><input type="checkbox" disabled>$1</li>').replace(/^- (.+)$/gm,'<li>$1</li>');h=h.replace(/(<li>[\s\S]*?<\/li>(\n|$))+/g,'<ul>$&</ul>');h=h.replace(/(?:^|\s)#([^\s#<]+)/g,(m,tag)=>/^\d+$/.test(tag)?m:` <span class="preview-tag" onclick="filterByTag('${tag}')" style="color:${getTagColor(tag)}">#${tag}</span>`);h=h.replace(/\[\[([^\]]+)\]\]/g,(_,t)=>{const l=findNoteByTitle(t);return l?`<a class="note-link" onclick="setActiveNote('${l.id}')">${escapeHtml(t)}</a>`:`<a class="note-link" style="opacity:.5" onclick="createNoteFromLink('${escapeHtml(t)}')">${escapeHtml(t)} (新規)</a>`});h=h.replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');document.getElementById('note-preview').innerHTML='<p>'+h+'</p>'}
+function createNoteFromLink(t){pushUndo();const id=generateId();notes[id]={id,title:t,content:'',pinned:false,created:Date.now(),updated:Date.now()};saveNotes();setActiveNote(id);renderNoteList();updateGraph()}
+
+// ==========================================
+// Search, Export, Import
+// ==========================================
+document.getElementById('search-input').addEventListener('input',()=>renderNoteList());
+function showExportModal(){const d={};Object.values(notes).forEach(n=>{d[n.id]={title:n.title,content:n.content,pinned:n.pinned,color:n.color,created:n.created,updated:n.updated}});const j=JSON.stringify(d,null,2),o=document.createElement('div');o.className='modal-overlay';o.innerHTML=`<div class="modal"><h3>エクスポート</h3><textarea readonly>${escapeHtml(j)}</textarea><div class="modal-actions"><button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">閉じる</button><button class="btn" onclick="downloadExport()">保存</button><button class="btn" onclick="navigator.clipboard.writeText(this.closest('.modal').querySelector('textarea').value);this.textContent='OK'">コピー</button></div></div>`;document.body.appendChild(o)}
+function downloadExport(){const d={};Object.values(notes).forEach(n=>{d[n.id]={title:n.title,content:n.content,pinned:n.pinned,color:n.color,created:n.created,updated:n.updated}});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));a.download='graph-notes-'+new Date().toISOString().slice(0,10)+'.json';a.click()}
+function showImportModal(){const o=document.createElement('div');o.className='modal-overlay';o.innerHTML=`<div class="modal"><h3>インポート</h3><textarea id="import-textarea" placeholder="JSON..."></textarea><input type="file" accept=".json" style="margin-top:6px;font-size:11px;color:var(--text-secondary)" onchange="const r=new FileReader();r.onload=e=>document.getElementById('import-textarea').value=e.target.result;r.readAsText(this.files[0])"><div class="modal-actions"><button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">取消</button><button class="btn" onclick="doImport()">インポート</button></div></div>`;document.body.appendChild(o)}
+function doImport(){try{const d=JSON.parse(document.getElementById('import-textarea').value);let c=0;Object.entries(d).forEach(([id,n])=>{if(n.title!==undefined){const nid=notes[id]?generateId():id;notes[nid]={id:nid,title:n.title,content:n.content||'',pinned:n.pinned||false,color:n.color||null,created:n.created||Date.now(),updated:n.updated||Date.now()};c++}});saveNotes();renderNoteList();updateGraph();document.querySelector('.modal-overlay').remove();showToast(c+'件インポート')}catch(e){alert('エラー: '+e.message)}}
+
+// ==========================================
+// Command Palette
+// ==========================================
+function toggleCommandPalette(){const cp=document.getElementById('command-palette'),ov=document.getElementById('command-palette-overlay');if(cp.style.display==='block'){closeCommandPalette();return}cp.style.display='block';ov.style.display='block';const i=document.getElementById('command-input');i.value='';i.focus();renderCommandResults('')}
+function closeCommandPalette(){document.getElementById('command-palette').style.display='none';document.getElementById('command-palette-overlay').style.display='none'}
+function renderCommandResults(q){const r=document.getElementById('command-results'),ql=q.toLowerCase();let items=[];[{name:'新規ノート',s:'Ctrl+N',a:'createNewNote()'},{name:'デイリーノート',s:'Ctrl+D',a:'createDailyNote()'},{name:'書籍検索',s:'Ctrl+Shift+B',a:'openBookSearch()'},{name:'全画面',s:'F11',a:'toggleFullscreen()'},{name:'エクスポート',s:'',a:'showExportModal()'},{name:'インポート',s:'',a:'showImportModal()'},{name:'サイドバー',s:'Ctrl+B',a:'toggleSidebar()'}].forEach(c=>{if(!ql||c.name.toLowerCase().includes(ql))items.push(`<div class="command-item" onclick="${c.a};closeCommandPalette()"><span>${c.name}</span><span class="cmd-shortcut">${c.s}</span></div>`)});Object.values(notes).sort((a,b)=>b.updated-a.updated).forEach(n=>{if(!ql||n.title.toLowerCase().includes(ql))items.push(`<div class="command-item" onclick="setActiveNote('${n.id}');closeCommandPalette()"><span>${escapeHtml(n.title)}</span><span class="cmd-shortcut">ノート</span></div>`)});r.innerHTML=items.slice(0,15).join('');const f=r.querySelector('.command-item');if(f)f.classList.add('selected')}
+document.getElementById('command-input').addEventListener('input',e=>renderCommandResults(e.target.value));
+document.getElementById('command-input').addEventListener('keydown',e=>{const r=document.getElementById('command-results'),items=r.querySelectorAll('.command-item');let sel=r.querySelector('.selected'),idx=Array.from(items).indexOf(sel);if(e.key==='ArrowDown'){e.preventDefault();if(sel)sel.classList.remove('selected');idx=(idx+1)%items.length;items[idx]?.classList.add('selected')}else if(e.key==='ArrowUp'){e.preventDefault();if(sel)sel.classList.remove('selected');idx=(idx-1+items.length)%items.length;items[idx]?.classList.add('selected')}else if(e.key==='Enter'&&sel){e.preventDefault();sel.click()}else if(e.key==='Escape')closeCommandPalette()});
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('collapsed')}
+
+// ==========================================
+// Book Search
+// ==========================================
+let bookSearchTimer=null;
+function getRecentBooks(){try{return JSON.parse(localStorage.getItem('recentBooks')||'[]')}catch(e){return[]}}
+function saveRecentBook(b){if(typeof b==='string')b=JSON.parse(b);let recent=getRecentBooks();recent=recent.filter(r=>r.title!==b.title||r.authors!==b.authors);recent.unshift({title:b.title,authors:b.authors,publisher:b.publisher||'',date:b.date||'',isbn:b.isbn||'',cover:b.cover||'',categories:b.categories||'',pages:b.pages||'',lang:b.lang||'',series:b.series||'',price:b.price||'',usedAt:Date.now()});if(recent.length>10)recent=recent.slice(0,10);localStorage.setItem('recentBooks',JSON.stringify(recent))}
+function renderRecentBooks(){const recent=getRecentBooks();if(!recent.length)return'<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div>';let html='<div class="recent-books-header"><span>📕 最近使った書籍</span><button class="recent-books-clear" onclick="clearRecentBooks()">クリア</button></div>';html+=recent.map(b=>renderBookItem(b)).join('');return html}
+function clearRecentBooks(){localStorage.removeItem('recentBooks');document.getElementById('book-results').innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div>';showToast('履歴をクリアしました')}
+function openBookSearch(){document.getElementById('book-search-modal').classList.add('visible');const i=document.getElementById('book-search-input');i.value='';i.focus();document.getElementById('book-results').innerHTML=renderRecentBooks()}
+function closeBookSearch(){document.getElementById('book-search-modal').classList.remove('visible')}
+document.getElementById('book-search-modal').addEventListener('click',e=>{if(e.target.id==='book-search-modal')closeBookSearch()});
+document.getElementById('book-search-input').addEventListener('input',e=>{clearTimeout(bookSearchTimer);const q=e.target.value.trim();if(!q){document.getElementById('book-results').innerHTML=renderRecentBooks();return}document.getElementById('book-results').innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">検索中...</div>';bookSearchTimer=setTimeout(()=>searchBooks(q),400)});
+document.getElementById('book-search-input').addEventListener('keydown',e=>{if(e.key==='Escape')closeBookSearch()});
+function renderBookItem(b){
+const meta=[b.publisher,b.date,b.pages?b.pages+'p':''].filter(Boolean).join(' / ');
+const bd=JSON.stringify(b).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+return`<div class="book-item">${b.cover?`<img class="book-cover" src="${b.cover}" alt="">`:'<div class="book-cover"></div>'}<div class="book-info"><div class="book-title">${escapeHtml(b.title)}</div><div class="book-author">${escapeHtml(b.authors)}</div>${b.series?`<div class="book-series">${escapeHtml(b.series)}</div>`:''}${meta?`<div class="book-meta">${escapeHtml(meta)}</div>`:''}${b.categories?`<div class="book-categories">${escapeHtml(b.categories)}</div>`:''}${b.rating?`<div class="book-rating">${b.rating}</div>`:''}${b.price?`<div class="book-price">${escapeHtml(b.price)}</div>`:''}${b.isbn?`<div class="book-isbn">ISBN: ${b.isbn}</div>`:''}${b.lang?`<span class="book-lang">${b.lang.toUpperCase()}</span>`:''} ${b.desc?`<div class="book-desc">${escapeHtml(b.desc)}</div>`:''}<div class="book-insert-btns"><span class="book-insert-btn" onclick='insertBookFull(${bd})'>詳細挿入</span><span class="book-insert-btn" onclick='insertBookShort(${bd})'>短縮挿入</span><span class="book-insert-btn" onclick='insertBookQuote(${bd})'>引用テンプレ</span></div></div></div>`}
+async function openBDLookup(isbns){
+const results={};if(!isbns.length)return results;
+try{const r=await fetch(`https://api.openbd.jp/v1/get?isbn=${isbns.join(',')}`);
+const obd=await r.json();
+obd.forEach((d,i)=>{if(!d)return;const isbn=isbns[i];const b={isbn,title:'',authors:'',publisher:'',series:'',date:'',price:'',pages:'',cover:'',categories:'',lang:'ja',desc:'',rating:''};
+if(d.summary){b.title=d.summary.title||'';b.publisher=d.summary.publisher||'';b.series=d.summary.series||'';b.cover=d.summary.cover||'';
+const au=d.summary.author||'';b.authors=au.replace(/,\s*\d{4}-?\d{0,4}/g,'').replace(/\s+/g,' ').trim()||'著者不明';
+if(d.summary.pubdate){const pd=d.summary.pubdate;b.date=pd.length>=6?pd.substring(0,4)+'-'+pd.substring(4,6):pd}}
+if(d.onix){const dd=d.onix.DescriptiveDetail;
+if(dd&&dd.Collection&&dd.Collection.TitleDetail){const se=dd.Collection.TitleDetail.TitleElement;
+if(se&&se.length){const sn=se.map(e=>e.TitleText?.content).filter(Boolean).join(' ');if(sn)b.series=sn}}
+const ps=d.onix.ProductSupply?.SupplyDetail?.Price;
+if(ps&&ps.length){b.price=ps[0].PriceAmount?ps[0].PriceAmount+'円':''}
+const tc=d.onix.CollateralDetail?.TextContent;
+if(tc&&tc.length)b.desc=(tc[0].Text||'').replace(/<[^>]*>/g,'').substring(0,200)}
+results[isbn]=b})}catch(e){}
+return results}
+async function searchBooks(q){
+const res=document.getElementById('book-results');
+try{
+// CiNii Books + Google Booksを並行検索
+const [ciniiRes,gRes1,gRes2]=await Promise.allSettled([
+fetch(`https://ci.nii.ac.jp/books/opensearch/search?title=${encodeURIComponent(q)}&format=json&count=30`),
+fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=10&printType=books&langRestrict=ja`),
+fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=10&printType=books`)
+]);
+// CiNiiからメタデータ+ISBN抽出
+let ciniiIsbns=[];const ciniiMeta=[];
+if(ciniiRes.status==='fulfilled'){try{const cj=await ciniiRes.value.json();
+const items=(cj['@graph']&&cj['@graph'][0]&&cj['@graph'][0].items)||[];
+items.forEach(item=>{
+let isbn='';
+const parts=item['dcterms:hasPart'];
+if(parts){const arr=Array.isArray(parts)?parts:[parts];
+arr.forEach(p=>{const id=p['@id']||'';if(id.startsWith('urn:isbn:')){const i=id.replace('urn:isbn:','');
+if(/^\d{9}[\dX]$/.test(i)||/^\d{13}$/.test(i))isbn=i}})}
+if(isbn)ciniiIsbns.push(isbn);
+const title=item.title||item['dc:title']||'';
+const creator=item['dc:creator']||'';
+const authors=creator.replace(/\s*(著|作|編|訳|画|監修|撰|原作)\s*/g,' ').replace(/\s+/g,' ').trim()||'著者不明';
+const publishers=item['dc:publisher']||[];
+const publisher=Array.isArray(publishers)?publishers[0]||'':publishers;
+const date=item['prism:publicationDate']||item['dc:date']||'';
+let series='';
+const partOf=item['dcterms:isPartOf'];
+if(partOf){const parr=Array.isArray(partOf)?partOf:[partOf];
+parr.forEach(p=>{if(p['dc:title'])series=p['dc:title']})}
+ciniiMeta.push({isbn,title,authors,publisher,series,date,cover:'',price:'',pages:'',categories:'',lang:'ja',desc:'',rating:''})
+})}catch(e){}}
+// OpenBDでISBN付き書籍の詳細を補完
+const obdData=await openBDLookup(ciniiIsbns);
+const ciniiBooks=[];const seenIsbn=new Set();
+ciniiMeta.forEach(m=>{
+if(m.isbn&&obdData[m.isbn]){const o=obdData[m.isbn];
+if(seenIsbn.has(m.isbn))return;seenIsbn.add(m.isbn);
+ciniiBooks.push({...m,title:o.title||m.title,authors:o.authors||m.authors,publisher:o.publisher||m.publisher,
+series:o.series||m.series,cover:o.cover||'',price:o.price||'',desc:o.desc||'',date:o.date||m.date})}
+else if(m.title&&!m.isbn){ciniiBooks.push(m)}
+else if(m.isbn&&!seenIsbn.has(m.isbn)){seenIsbn.add(m.isbn);ciniiBooks.push(m)}
+});
+// Google Booksの結果を統合
+let googleBooks=[];
+const gItems=[];
+if(gRes1.status==='fulfilled'){try{const g1=await gRes1.value.json();if(g1.items)gItems.push(...g1.items)}catch(e){}}
+if(gRes2.status==='fulfilled'){try{const g2=await gRes2.value.json();if(g2.items)gItems.push(...g2.items)}catch(e){}}
+const seen=new Set();
+gItems.forEach(item=>{if(seen.has(item.id))return;seen.add(item.id);
+const v=item.volumeInfo;const title=v.title||'';const sub=v.subtitle?' - '+v.subtitle:'';
+const authors=(v.authors||[]).join(', ')||'著者不明';
+const isbn13=(v.industryIdentifiers||[]).find(i=>i.type==='ISBN_13')?.identifier||'';
+const isbn=(v.industryIdentifiers||[]).find(i=>i.type==='ISBN_10')?.identifier||isbn13||'';
+const rating=v.averageRating;const rc=v.ratingsCount||0;
+googleBooks.push({title:title+sub,authors,publisher:v.publisher||'',series:'',date:v.publishedDate||'',
+price:'',pages:v.pageCount?String(v.pageCount):'',isbn,
+cover:v.imageLinks?.thumbnail||v.imageLinks?.smallThumbnail||'',
+categories:(v.categories||[]).join(', '),lang:v.language||'',
+desc:(v.description||'').replace(/<[^>]*>/g,'').substring(0,200),
+rating:rating?'★'.repeat(Math.round(rating))+'☆'.repeat(5-Math.round(rating))+` ${rating}/5 (${rc}件)`:''})});
+// Google結果もOpenBDで補完
+const gIsbns=googleBooks.filter(b=>b.isbn&&/^[\dX]{10,13}$/.test(b.isbn)).map(b=>b.isbn);
+const gObd=await openBDLookup(gIsbns);
+googleBooks.forEach(b=>{if(gObd[b.isbn]){const o=gObd[b.isbn];
+if(o.series&&!b.series)b.series=o.series;if(o.price&&!b.price)b.price=o.price;
+if(o.cover&&!b.cover)b.cover=o.cover;if(o.desc&&!b.desc)b.desc=o.desc;
+if(o.authors&&isJapanese(o.authors))b.authors=o.authors;
+if(o.title&&isJapanese(o.title))b.title=o.title}});
+// CiNii結果とGoogle結果でISBN重複を排除（CiNii優先）
+const ciniiIsbnSet=new Set(ciniiBooks.map(b=>b.isbn));
+googleBooks=googleBooks.filter(b=>!b.isbn||!ciniiIsbnSet.has(b.isbn));
+// タイトル一致度でソート
+const ql=q.toLowerCase();
+const sortByTitle=(a,b)=>{const at=a.title.toLowerCase(),bt=b.title.toLowerCase();
+const ae=at===ql?2:at.startsWith(ql)?1:at.includes(ql)?0.5:0;
+const be=bt===ql?2:bt.startsWith(ql)?1:bt.includes(ql)?0.5:0;
+return be-ae};
+ciniiBooks.sort(sortByTitle);googleBooks.sort(sortByTitle);
+if(!ciniiBooks.length&&!googleBooks.length){res.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';return}
+let html='';
+if(ciniiBooks.length){html+=`<div class="book-section-header"><span class="book-source src-ndl">日本</span>国内出版 (${ciniiBooks.length}件)</div>`;
+html+=ciniiBooks.map(b=>renderBookItem(b)).join('')}
+if(googleBooks.length){html+=`<div class="book-section-header"><span class="book-source src-google">Google</span>Google Books (${googleBooks.length}件)</div>`;
+html+=googleBooks.map(b=>renderBookItem(b)).join('')}
+res.innerHTML=html}
+catch(e){res.innerHTML='<div style="padding:20px;text-align:center;color:var(--red)">検索エラー</div>'}}
+function isJapanese(s){return/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(s)}
+function insertBookFull(b){if(typeof b==='string')b=JSON.parse(b);saveRecentBook(b);let t=`\n\n---\n📚 **${b.title}**\n著者: ${b.authors}\n`;if(b.series)t+=`叢書: ${b.series}\n`;if(b.publisher)t+=`出版: ${b.publisher}`;if(b.date)t+=` (${b.date})`;t+='\n';if(b.pages)t+=`ページ数: ${b.pages}p\n`;if(b.price)t+=`価格: ${b.price}\n`;if(b.categories)t+=`カテゴリ: ${b.categories}\n`;if(b.isbn)t+=`ISBN: ${b.isbn}\n`;t+='---\n';insertTextAtCursor(t);closeBookSearch();showToast('📚 '+b.title)}
+function insertBookShort(b){if(typeof b==='string')b=JSON.parse(b);saveRecentBook(b);insertTextAtCursor(`（${b.authors}『${b.title}』${b.publisher||''}${b.date?', '+b.date:''}）`);closeBookSearch();showToast('📚 短縮引用挿入')}
+function insertBookQuote(b){if(typeof b==='string')b=JSON.parse(b);saveRecentBook(b);insertTextAtCursor(`\n\n> ここに引用文を入力\n> — ${b.authors}『${b.title}』${b.publisher||''}${b.date?', '+b.date:''}\n`);closeBookSearch();showToast('📚 引用テンプレ挿入')}
+function insertTextAtCursor(t){const ta=document.getElementById('note-editor');if(!ta||ta.style.display==='none')return;pushUndo();const s=ta.selectionStart;ta.value=ta.value.substring(0,s)+t+ta.value.substring(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+t.length;ta.dispatchEvent(new Event('input'));ta.focus()}
+
+// ==========================================
+// Keyboard Shortcuts
+// ==========================================
+document.addEventListener('keydown',e=>{
+const inEditor=document.activeElement.id==='note-editor'||document.activeElement.id==='note-title-input';
+// Ctrl+Z: Undo（エディタ外ではアプリUndo）
+if(e.ctrlKey&&e.key==='z'&&!e.shiftKey&&!inEditor){e.preventDefault();undo()}
+// Ctrl+Shift+Z / Ctrl+Y: Redo
+else if((e.ctrlKey&&e.key==='y')||(e.ctrlKey&&e.shiftKey&&e.key==='Z')){e.preventDefault();redo()}
+// Ctrl+S: 保存
+else if(e.ctrlKey&&e.key==='s'){e.preventDefault();saveNotes();showToast('保存しました')}
+// Ctrl+N: 新規ノート
+else if(e.ctrlKey&&e.key==='n'){e.preventDefault();createNewNote()}
+// Ctrl+D: デイリーノート
+else if(e.ctrlKey&&e.key==='d'){e.preventDefault();createDailyNote()}
+// Ctrl+P: コマンドパレット
+else if(e.ctrlKey&&e.key==='p'){e.preventDefault();toggleCommandPalette()}
+// Ctrl+F: 検索
+else if(e.ctrlKey&&e.key==='f'){e.preventDefault();document.getElementById('search-input').focus()}
+// Ctrl+B: サイドバー
+else if(e.ctrlKey&&e.key==='b'&&!e.shiftKey){e.preventDefault();toggleSidebar()}
+// Ctrl+Shift+B: 書籍検索
+else if(e.ctrlKey&&e.shiftKey&&e.key==='B'){e.preventDefault();if(activeNoteId)openBookSearch()}
+// Ctrl+Shift+D: ノート複製
+else if(e.ctrlKey&&e.shiftKey&&e.key==='D'){e.preventDefault();if(activeNoteId)duplicateNote(activeNoteId)}
+// Ctrl+Delete / Ctrl+Backspace: ノート削除
+else if(e.ctrlKey&&(e.key==='Delete'||e.key==='Backspace')&&!inEditor){e.preventDefault();if(activeNoteId)deleteNote(activeNoteId)}
+// Ctrl+E: 編集/プレビュー切替
+else if(e.ctrlKey&&e.key==='e'){e.preventDefault();if(currentTab==='edit')switchTab('preview');else switchTab('edit')}
+// Ctrl+J: 分割表示
+else if(e.ctrlKey&&e.key==='j'){e.preventDefault();switchTab('split')}
+// F11: 全画面
+else if(e.key==='F11'){e.preventDefault();toggleFullscreen()}
+// F2: タイトル編集にフォーカス
+else if(e.key==='F2'){e.preventDefault();document.getElementById('note-title-input').select()}
+// Escape
+else if(e.key==='Escape'){if(document.getElementById('command-palette').style.display==='block')closeCommandPalette();else if(document.getElementById('book-search-modal').classList.contains('visible'))closeBookSearch();else if(document.getElementById('graph-container').classList.contains('fullscreen'))toggleFullscreen()}
+});
+
+// ==========================================
+// Resize Handle
+// ==========================================
+{const h=document.getElementById('resize-handle'),gc=document.getElementById('graph-container');let sy,sh;h.addEventListener('mousedown',e=>{sy=e.clientY;sh=gc.offsetHeight;const mv=e=>{gc.style.height=Math.max(80,Math.min(innerHeight-180,sh+e.clientY-sy))+'px';onWindowResize()},up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)};document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up)})}
+
+// ==========================================
+// 3D Graph
+// ==========================================
+let scene,camera,renderer,graphGroup;
+let nodeObjects=[],edgeObjects=[],particleSystems=[];
+let raycaster,mouse;
+let isDragging=false,draggedNode=null,dragPlane=null;
+let dragStartPos={x:0,y:0},previousMouse={x:0,y:0};
+let cameraAngle={theta:.5,phi:Math.PI/3,radius:200},targetCameraAngle=null;
+let hoveredNode=null,linkSourceNode=null,linkLine=null;
+let graphSettings={repulsion:1000,attraction:6,distance:55,labels:true,particles:true,autorotate:true};
+
+function getNodeColor(id){const c=notes[id]?.color;if(c)return parseInt(c.replace('#',''),16);const tags=extractTags(notes[id]?.content||'');if(tags.length>0)return parseInt(getTagColor(tags[0]).replace('#',''),16);const lc=getLinkCount(id);if(lc===0)return 0x6c7086;if(lc<=2)return 0x89b4fa;if(lc<=4)return 0xa6e3a1;return 0xcba6f7}
+
+function initGraph(){
+  const c=document.getElementById('graph-container'),w=c.clientWidth,h=c.clientHeight;
+  scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0d15);scene.fog=new THREE.FogExp2(0x0d0d15,.0012);
+  camera=new THREE.PerspectiveCamera(55,w/h,1,2000);updateCameraPosition();
+  renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(w,h);renderer.setPixelRatio(Math.min(devicePixelRatio,2));c.insertBefore(renderer.domElement,c.firstChild);
+  graphGroup=new THREE.Group();scene.add(graphGroup);
+  scene.add(new THREE.AmbientLight(0xffffff,.4));const dl=new THREE.DirectionalLight(0xffffff,.6);dl.position.set(100,200,150);scene.add(dl);scene.add(new THREE.PointLight(0x89b4fa,.5,500));
+  const grid=new THREE.GridHelper(500,50,0x1e1e2e,0x141420);grid.position.y=-100;grid.material.opacity=.4;grid.material.transparent=true;scene.add(grid);
+  const sg=new THREE.BufferGeometry(),sp=[];for(let i=0;i<800;i++)sp.push((Math.random()-.5)*1200,(Math.random()-.5)*1200,(Math.random()-.5)*1200);sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0x45475a,size:1,transparent:true,opacity:.5})));
+  raycaster=new THREE.Raycaster();mouse=new THREE.Vector2();dragPlane=new THREE.Plane();
+  const llG=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);linkLine=new THREE.Line(llG,new THREE.LineBasicMaterial({color:0x89b4fa,transparent:true,opacity:.8}));linkLine.visible=false;scene.add(linkLine);
+  const cv=renderer.domElement;cv.addEventListener('mousedown',onGraphMouseDown);cv.addEventListener('mousemove',onGraphMouseMove);cv.addEventListener('mouseup',onGraphMouseUp);cv.addEventListener('wheel',onGraphWheel,{passive:false});cv.addEventListener('contextmenu',e=>e.preventDefault());
+  updateGraph();animate();
+}
+
+function updateCameraPosition(){camera.position.x=cameraAngle.radius*Math.sin(cameraAngle.phi)*Math.cos(cameraAngle.theta);camera.position.y=cameraAngle.radius*Math.cos(cameraAngle.phi);camera.position.z=cameraAngle.radius*Math.sin(cameraAngle.phi)*Math.sin(cameraAngle.theta);camera.lookAt(0,0,0)}
+function resetCamera(){targetCameraAngle={theta:.5,phi:Math.PI/3,radius:200}}
+function toggleFullscreen(){document.getElementById('graph-container').classList.toggle('fullscreen');setTimeout(onWindowResize,50)}
+function toggleGraphSettings(){document.getElementById('graph-settings').classList.toggle('visible')}
+function applyGraphSettings(){graphSettings.repulsion=+document.getElementById('gs-repulsion').value;graphSettings.attraction=+document.getElementById('gs-attraction').value;graphSettings.distance=+document.getElementById('gs-distance').value;graphSettings.labels=document.getElementById('gs-labels').checked;graphSettings.particles=document.getElementById('gs-particles').checked;graphSettings.autorotate=document.getElementById('gs-autorotate').checked;Object.values(notes).forEach(n=>{delete n._gx;delete n._gy;delete n._gz});saveNotes();updateGraph();showToast('グラフ設定適用')}
+
+function onGraphMouseDown(e){const c=document.getElementById('graph-container'),r=c.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;dragStartPos={x:e.clientX,y:e.clientY};previousMouse={x:e.clientX,y:e.clientY};raycaster.setFromCamera(mouse,camera);const its=raycaster.intersectObjects(nodeObjects.map(n=>n.mesh));if(e.button===0&&its.length>0){const nd=nodeObjects.find(n=>n.mesh===its[0].object);if(nd){if(e.shiftKey){linkSourceNode=nd;linkLine.visible=true;document.getElementById('link-indicator').style.display='block'}else{draggedNode=nd;const nm=new THREE.Vector3();camera.getWorldDirection(nm);dragPlane.setFromNormalAndCoplanarPoint(nm,nd.mesh.position.clone().applyMatrix4(graphGroup.matrixWorld))}return}}if(e.button===0)isDragging=true}
+
+function onGraphMouseMove(e){const c=document.getElementById('graph-container'),r=c.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;previousMouse={x:e.clientX,y:e.clientY};
+if(linkSourceNode){raycaster.setFromCamera(mouse,camera);const sw=linkSourceNode.mesh.position.clone().applyMatrix4(graphGroup.matrixWorld),dir=new THREE.Vector3();camera.getWorldDirection(dir);const pl=new THREE.Plane().setFromNormalAndCoplanarPoint(dir,sw),tgt=new THREE.Vector3();raycaster.ray.intersectPlane(pl,tgt);if(tgt){const p=linkLine.geometry.attributes.position;p.setXYZ(0,sw.x,sw.y,sw.z);p.setXYZ(1,tgt.x,tgt.y,tgt.z);p.needsUpdate=true}const hs=raycaster.intersectObjects(nodeObjects.map(n=>n.mesh)),hv=hs.length>0?nodeObjects.find(n=>n.mesh===hs[0].object):null;if(hv&&hv!==linkSourceNode){document.getElementById('link-indicator').textContent=linkSourceNode.note.title+' → '+hv.note.title;hoveredNode=hv}else{document.getElementById('link-indicator').textContent='リンク先にドロップ...';hoveredNode=null}return}
+if(draggedNode){raycaster.setFromCamera(mouse,camera);const pt=new THREE.Vector3();raycaster.ray.intersectPlane(dragPlane,pt);if(pt){const lc=graphGroup.worldToLocal(pt.clone());draggedNode.mesh.position.copy(lc);if(draggedNode.label)draggedNode.label.position.set(lc.x,lc.y+draggedNode.radius+9,lc.z);updateEdgePositions();const n=notes[draggedNode.noteId];if(n){n._gx=lc.x;n._gy=lc.y;n._gz=lc.z}}document.body.style.cursor='grabbing';return}
+if(isDragging){const dx=e.clientX-previousMouse.x,dy=e.clientY-previousMouse.y;cameraAngle.theta-=dx*.005;cameraAngle.phi=Math.max(.1,Math.min(Math.PI-.1,cameraAngle.phi+dy*.005));updateCameraPosition();previousMouse={x:e.clientX,y:e.clientY};return}
+raycaster.setFromCamera(mouse,camera);const its=raycaster.intersectObjects(nodeObjects.map(n=>n.mesh)),tt=document.getElementById('node-tooltip');if(its.length>0){const nd=nodeObjects.find(n=>n.mesh===its[0].object);if(nd){hoveredNode=nd;const tags=extractTags(nd.note.content),lc=getLinkCount(nd.noteId),pv=nd.note.content.replace(/[#\[\]*`>-]/g,'').substring(0,60);tt.innerHTML=`<div class="tooltip-title">${escapeHtml(nd.note.title)}</div>`+(tags.length?`<div class="tooltip-tags">${tags.map(t=>'#'+t).join(' ')}</div>`:'')+`<div class="tooltip-links">${lc} リンク</div>`+(pv?`<div class="tooltip-preview">${escapeHtml(pv)}...</div>`:'');tt.style.display='block';tt.style.left=Math.min(e.clientX-r.left+14,r.width-230)+'px';tt.style.top=(e.clientY-r.top-10)+'px';document.body.style.cursor='pointer'}}else{hoveredNode=null;tt.style.display='none';document.body.style.cursor='default'}}
+
+function onGraphMouseUp(e){if(linkSourceNode){if(hoveredNode&&hoveredNode.noteId!==linkSourceNode.noteId){const s=notes[linkSourceNode.noteId],t=notes[hoveredNode.noteId];if(s&&t&&!s.content.includes('[['+t.title+']]')){s.content+=(s.content?'\n':'')+'[['+t.title+']]';s.updated=Date.now();saveNotes();if(activeNoteId===s.id)document.getElementById('note-editor').value=s.content;updateGraph();renderNoteList();renderBacklinks();showToast('リンク作成: '+s.title+' → '+t.title)}}linkSourceNode=null;linkLine.visible=false;document.getElementById('link-indicator').style.display='none';hoveredNode=null;return}
+if(draggedNode){const dx=Math.abs(e.clientX-dragStartPos.x),dy=Math.abs(e.clientY-dragStartPos.y);if(dx<4&&dy<4){setActiveNote(draggedNode.noteId);animateCameraToNode(draggedNode)}saveNotes();draggedNode=null;document.body.style.cursor='default';return}isDragging=false;document.body.style.cursor='default'}
+document.addEventListener('mouseup',()=>{if(draggedNode){saveNotes();draggedNode=null}if(linkSourceNode){linkSourceNode=null;linkLine.visible=false;document.getElementById('link-indicator').style.display='none'}isDragging=false;document.body.style.cursor='default'});
+
+function onGraphWheel(e){e.preventDefault();cameraAngle.radius=Math.max(40,Math.min(600,cameraAngle.radius+e.deltaY*.25));updateCameraPosition()}
+function animateCameraToNode(nd){const p=nd.mesh.position.clone();graphGroup.localToWorld(p);const d=p.clone().normalize();targetCameraAngle={theta:Math.atan2(d.z,d.x)+Math.PI,phi:Math.max(.3,Math.min(Math.PI-.3,Math.acos(Math.max(-1,Math.min(1,d.y/(d.length()||1)))))),radius:Math.min(cameraAngle.radius,160)}}
+
+function updateGraph(){
+  while(graphGroup.children.length){const c=graphGroup.children[0];graphGroup.remove(c);if(c.geometry)c.geometry.dispose();if(c.material){if(c.material.map)c.material.map.dispose();c.material.dispose()}}
+  nodeObjects=[];edgeObjects=[];particleSystems=[];
+  let arr=Object.values(notes);
+  if(activeTagFilter){const ids=new Set(arr.filter(n=>extractTags(n.content).includes(activeTagFilter)).map(n=>n.id));arr.forEach(n=>{if(ids.has(n.id)){extractLinks(n.content).forEach(lt=>{const l=findNoteByTitle(lt);if(l)ids.add(l.id)});getBacklinks(n.id).forEach(bl=>ids.add(bl.id))}});arr=arr.filter(n=>ids.has(n.id))}
+  if(!arr.length){renderGraphLegend();return}
+  const nm={};arr.forEach((n,i)=>{const a=(i/arr.length)*Math.PI*2,r=40+Math.random()*40;nm[n.id]={x:n._gx??r*Math.cos(a),y:n._gy??(Math.random()-.5)*60,z:n._gz??r*Math.sin(a),vx:0,vy:0,vz:0,note:n}});
+  const edges=[];arr.forEach(n=>{extractLinks(n.content).forEach(lt=>{const t=findNoteByTitle(lt);if(t&&t.id!==n.id&&nm[t.id])edges.push({source:n.id,target:t.id})})});
+  const iters=arr.some(n=>n._gx!==undefined)?25:100;
+  for(let it=0;it<iters;it++){const ids=Object.keys(nm);for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){const a=nm[ids[i]],b=nm[ids[j]];let dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z,dist=Math.sqrt(dx*dx+dy*dy+dz*dz)||1,f=graphSettings.repulsion/(dist*dist);a.vx+=dx/dist*f;a.vy+=dy/dist*f;a.vz+=dz/dist*f;b.vx-=dx/dist*f;b.vy-=dy/dist*f;b.vz-=dz/dist*f}edges.forEach(e=>{const a=nm[e.source],b=nm[e.target];if(!a||!b)return;let dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z,dist=Math.sqrt(dx*dx+dy*dy+dz*dz)||1,f=(dist-graphSettings.distance)*graphSettings.attraction*.01;a.vx-=dx/dist*f;a.vy-=dy/dist*f;a.vz-=dz/dist*f;b.vx+=dx/dist*f;b.vy+=dy/dist*f;b.vz+=dz/dist*f});Object.values(nm).forEach(n=>{n.vx-=n.x*.008;n.vy-=n.y*.008;n.vz-=n.z*.008;n.vx*=.55;n.vy*=.55;n.vz*=.55;n.x+=n.vx;n.y+=n.vy;n.z+=n.vz})}
+  Object.values(nm).forEach(n=>{notes[n.note.id]._gx=n.x;notes[n.note.id]._gy=n.y;notes[n.note.id]._gz=n.z});
+  Object.values(nm).forEach(n=>{const lc=getLinkCount(n.note.id),radius=1.2+Math.min(lc,6)*.5,color=getNodeColor(n.note.id);const geo=new THREE.SphereGeometry(radius,20,20),mat=new THREE.MeshPhongMaterial({color,emissive:color,emissiveIntensity:.3,shininess:100,transparent:true,opacity:.95}),mesh=new THREE.Mesh(geo,mat);mesh.position.set(n.x,n.y,n.z);graphGroup.add(mesh);
+  const gG=new THREE.SphereGeometry(radius*2,16,16),gM=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.07}),glow=new THREE.Mesh(gG,gM);mesh.add(glow);
+  const rG=new THREE.RingGeometry(radius+2,radius+3.5,32),rM=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,side:THREE.DoubleSide}),ring=new THREE.Mesh(rG,rM);mesh.add(ring);
+  let label=null;if(graphSettings.labels){const cv=document.createElement('canvas'),ctx=cv.getContext('2d');cv.width=512;cv.height=80;ctx.font='bold 36px Meiryo, sans-serif';ctx.fillStyle='#cdd6f4';ctx.textAlign='center';ctx.shadowColor='#000';ctx.shadowBlur=6;ctx.fillText(n.note.title.substring(0,18),256,50);const tex=new THREE.CanvasTexture(cv),sM=new THREE.SpriteMaterial({map:tex,transparent:true,opacity:.75});label=new THREE.Sprite(sM);label.position.set(n.x,n.y+radius+9,n.z);label.scale.set(55,9,1);graphGroup.add(label)}
+  nodeObjects.push({mesh,noteId:n.note.id,note:n.note,radius,glow,ring,label,color,_searchMatch:true})});
+  edges.forEach(e=>{const a=nm[e.source],b=nm[e.target];if(!a||!b)return;const start=new THREE.Vector3(a.x,a.y,a.z),end=new THREE.Vector3(b.x,b.y,b.z),mid=start.clone().add(end).multiplyScalar(.5),off=new THREE.Vector3().crossVectors(end.clone().sub(start).normalize(),new THREE.Vector3(0,1,0)).multiplyScalar(5);mid.add(off);const curve=new THREE.QuadraticBezierCurve3(start,mid,end),pts=curve.getPoints(20),geo=new THREE.BufferGeometry().setFromPoints(pts),mat=new THREE.LineBasicMaterial({color:0x585b70,transparent:true,opacity:.35}),line=new THREE.Line(geo,mat);graphGroup.add(line);
+  const mp=curve.getPoint(.65),tg=curve.getTangent(.65).normalize(),aG=new THREE.ConeGeometry(1.5,4,6),aM=new THREE.MeshBasicMaterial({color:0x585b70,transparent:true,opacity:.4}),arrow=new THREE.Mesh(aG,aM);arrow.position.copy(mp);arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),tg);graphGroup.add(arrow);
+  edgeObjects.push({line,arrow,sourceId:e.source,targetId:e.target,curve});
+  if(graphSettings.particles){const pc=4,pG=new THREE.BufferGeometry(),pp=new Float32Array(pc*3);pG.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));const pM=new THREE.PointsMaterial({color:0x89b4fa,size:1.8,transparent:true,opacity:.5}),particles=new THREE.Points(pG,pM);graphGroup.add(particles);particleSystems.push({particles,curve,count:pc,offsets:Array.from({length:pc},(_,i)=>i/pc)})}});
+  renderGraphLegend();
+}
+function renderGraphLegend(){const l=document.getElementById('graph-legend'),tags=getAllTags().slice(0,5);let h='<span class="legend-item"><span class="legend-dot" style="background:#6c7086"></span>無リンク</span>';tags.forEach(t=>{h+=`<span class="legend-item"><span class="legend-dot" style="background:${getTagColor(t)}"></span>#${t}</span>`});l.innerHTML=h}
+function updateEdgePositions(){edgeObjects.forEach(e=>{const s=nodeObjects.find(n=>n.noteId===e.sourceId),t=nodeObjects.find(n=>n.noteId===e.targetId);if(!s||!t)return;const start=s.mesh.position.clone(),end=t.mesh.position.clone(),mid=start.clone().add(end).multiplyScalar(.5),off=new THREE.Vector3().crossVectors(end.clone().sub(start).normalize(),new THREE.Vector3(0,1,0)).multiplyScalar(5);mid.add(off);const curve=new THREE.QuadraticBezierCurve3(start,mid,end),pts=curve.getPoints(20);e.line.geometry.dispose();e.line.geometry=new THREE.BufferGeometry().setFromPoints(pts);e.curve=curve;const mp=curve.getPoint(.65),tg=curve.getTangent(.65).normalize();e.arrow.position.copy(mp);e.arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),tg)})}
+
+let animTime=0;
+function animate(){requestAnimationFrame(animate);animTime+=.005;
+if(targetCameraAngle){const s=.06;cameraAngle.theta+=(targetCameraAngle.theta-cameraAngle.theta)*s;cameraAngle.phi+=(targetCameraAngle.phi-cameraAngle.phi)*s;cameraAngle.radius+=(targetCameraAngle.radius-cameraAngle.radius)*s;if(Math.abs(targetCameraAngle.theta-cameraAngle.theta)<.001)targetCameraAngle=null;updateCameraPosition()}
+if(!isDragging&&!draggedNode&&!targetCameraAngle&&graphSettings.autorotate)graphGroup.rotation.y+=.0006;
+nodeObjects.forEach(n=>{const isA=n.noteId===activeNoteId,isH=hoveredNode?.noteId===n.noteId;if(isA){n.mesh.scale.setScalar(1.15+Math.sin(animTime*5)*.06);n.mesh.material.emissiveIntensity=.6;n.ring.material.opacity=.5}else if(isH){n.mesh.scale.setScalar(1.2);n.mesh.material.emissiveIntensity=.5;n.ring.material.opacity=.3}else{n.mesh.scale.setScalar(1);n.mesh.material.emissiveIntensity=.3;n.ring.material.opacity=0}
+if(hoveredNode&&!isH){const cn=edgeObjects.some(e=>(e.sourceId===hoveredNode.noteId&&e.targetId===n.noteId)||(e.targetId===hoveredNode.noteId&&e.sourceId===n.noteId));n.mesh.material.opacity=cn?.95:.2;if(n.label)n.label.material.opacity=cn?.8:.15}else{n.mesh.material.opacity=.95;if(n.label)n.label.material.opacity=.75}
+try{n.ring.lookAt(camera.position.clone().sub(n.mesh.position).applyMatrix4(new THREE.Matrix4().extractRotation(graphGroup.matrixWorld).invert()))}catch(e){}});
+edgeObjects.forEach(e=>{if(hoveredNode){const c=e.sourceId===hoveredNode.noteId||e.targetId===hoveredNode.noteId;e.line.material.opacity=c?.8:.08;e.line.material.color.setHex(c?0x89b4fa:0x585b70);e.arrow.material.opacity=c?.7:.05}else{e.line.material.opacity=.35;e.line.material.color.setHex(0x585b70);e.arrow.material.opacity=.4}});
+particleSystems.forEach(ps=>{const pos=ps.particles.geometry.attributes.position;for(let i=0;i<ps.count;i++){ps.offsets[i]=(ps.offsets[i]+.004)%1;const pt=ps.curve.getPoint(ps.offsets[i]);pos.setXYZ(i,pt.x,pt.y,pt.z)}pos.needsUpdate=true});
+renderer.render(scene,camera)}
+
+function onWindowResize(){const c=document.getElementById('graph-container'),w=c.clientWidth,h=c.clientHeight;if(camera&&renderer){camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h)}}
+window.addEventListener('resize',onWindowResize);
+
+// ==========================================
+// Demo Data & Init
+// ==========================================
+if(Object.keys(notes).length===0){
+  const ids=Array.from({length:6},()=>generateId());
+  notes[ids[0]]={id:ids[0],title:'はじめに',pinned:true,content:'# 3D Graph Notes\n\n**Obsidian**のような双方向リンク付き3Dメモアプリ\n\n## 特徴\n- 3Dネットワークグラフ\n- `[[ノート名]]` でリンク\n- `#タグ` でカテゴリ分類\n- 📚 書籍検索・引用挿入\n- Googleアカウント同期\n\n[[使い方]] [[アイデア]]\n\n#入門',created:Date.now(),updated:Date.now()};
+  notes[ids[1]]={id:ids[1],title:'使い方',pinned:false,content:'# 使い方\n\n## 基本\n1. `[[ノート名]]` でリンク\n2. `#タグ` でカテゴリ\n3. 📚ボタンで書籍検索\n4. Shift+ドラッグでノード間リンク\n\n## ショートカット\n- `Ctrl+N` 新規\n- `Ctrl+D` デイリー\n- `Ctrl+Shift+B` 書籍検索\n- `Ctrl+P` コマンド\n\n[[はじめに]]\n\n#入門',created:Date.now(),updated:Date.now()};
+  notes[ids[2]]={id:ids[2],title:'アイデア',pinned:false,content:'# アイデア\n\n- 知識のネットワーク構築\n- [[ブレスト手法]] を活用\n\n[[はじめに]] [[読書メモ]]\n\n#アイデア',created:Date.now(),updated:Date.now()};
+  notes[ids[3]]={id:ids[3],title:'ブレスト手法',pinned:false,content:'# ブレインストーミング\n\n## SCAMPER法\n- Substitute / Combine / Adapt / Modify / Put / Eliminate / Reverse\n\n[[アイデア]]\n\n#アイデア #手法',created:Date.now(),updated:Date.now()};
+  notes[ids[4]]={id:ids[4],title:'読書メモ',pinned:false,content:'# 読書メモ\n\n## Zettelkasten方式\n- 1ノート1アイデア\n- ノート同士を繋げる\n\n[[アイデア]] [[ブレスト手法]]\n\n#読書',created:Date.now(),updated:Date.now()};
+  notes[ids[5]]={id:ids[5],title:'プロジェクト',pinned:false,content:'# プロジェクト計画\n\n- [x] ノート機能\n- [x] リンク機能\n- [ ] [[アイデア]] 収集\n\n#プロジェクト',created:Date.now(),updated:Date.now()};
+  saveNotesLocal();
+}
+renderNoteList();initGraph();updateStats();
+
+// ==========================================
+// PWA & Mobile
+// ==========================================
+if(!window.electronAPI&&'serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{})}
+
+const isMobile=()=>window.innerWidth<=768;
+function toggleMobileSidebar(){
+  const sb=document.getElementById('sidebar');
+  let ov=document.querySelector('.mobile-overlay');
+  if(!ov){ov=document.createElement('div');ov.className='mobile-overlay';ov.onclick=()=>toggleMobileSidebar();document.body.appendChild(ov)}
+  if(sb.classList.contains('mobile-open')){sb.classList.remove('mobile-open');ov.classList.remove('visible')}
+  else{sb.classList.add('mobile-open');sb.classList.remove('collapsed');ov.classList.add('visible')}
+}
+const _origToggleSidebar=toggleSidebar;
+toggleSidebar=function(){if(isMobile())toggleMobileSidebar();else _origToggleSidebar()};
+const _origSetActive=setActiveNote;
+setActiveNote=function(id){_origSetActive(id);if(isMobile()){const sb=document.getElementById('sidebar');sb.classList.remove('mobile-open');const ov=document.querySelector('.mobile-overlay');if(ov)ov.classList.remove('visible')}};
+
+// Touch support for graph
+{let td=0;
+const gc=document.getElementById('graph-container');
+gc.addEventListener('touchstart',e=>{e.preventDefault();if(e.touches.length===1){const t=e.touches[0];onGraphMouseDown({clientX:t.clientX,clientY:t.clientY,button:0,shiftKey:false,preventDefault(){}})}else if(e.touches.length===2){td=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)}},{passive:false});
+gc.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1){onGraphMouseMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY,shiftKey:false,preventDefault(){}})}else if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);cameraAngle.radius=Math.max(40,Math.min(600,cameraAngle.radius+(td-d)*.5));updateCameraPosition();td=d}},{passive:false});
+gc.addEventListener('touchend',e=>{onGraphMouseUp({clientX:previousMouse.x,clientY:previousMouse.y})},{passive:false})}
+
+</script>
+</body>
+</html>
