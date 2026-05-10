@@ -24,7 +24,7 @@
 - 「ついで」修正禁止 (意図しない変更ゼロ)
 - 実装前に必ず計画を提示し、ユーザーの GO サインを待つ
 
-## 書籍検索の現状 (Phase 5 完了)
+## 書籍検索の現状 (Phase 6 完了)
 
 ### API 構成
 `Promise.allSettled` で 5 本並列:
@@ -43,10 +43,12 @@
 | 著者不明ペナルティ | -0.5 |
 | 全集系ペナルティ | -1.5 |
 | 映像メディアペナルティ | -1.0 |
+| 人気度ボーナス (Google Books のみ) | 0 〜 +1.5 |
 
 正規表現:
 - 全集系: `/(全作品|全集|選集|傑作集|作品集|大全|アンソロジー)/`
 - 映像系: `/監督|脚本|主演|製作|出演/`
+- 人気度: `Math.min(1.5, Math.log10(ratingsCount + 1) * 0.5) * (averageRating / 5)`
 
 ### 文字列正規化 (`norm` @ L756)
 1. 全角 ASCII → 半角 ASCII (`Ａ-Ｚａ-ｚ０-９` → `A-Za-z0-9`)
@@ -54,7 +56,7 @@
 3. 区切り文字除去 (`[,、・\s　]+`)
 
 ### キャッシュ
-- localStorage キー: `bookSearchCache:v5`
+- localStorage キー: `bookSearchCache:v6`
 - TTL: 60 分 / 最大 50 件 / LRU 風 eviction
 - スコアリング変更時はキー version を上げて旧キャッシュを cleanup する慣習
 - 関連関数: `getSearchCache`, `setSearchCache`, `normalizeBookQuery` @ L656-658
@@ -71,6 +73,15 @@
 | `sortByRelevance(a, b)` | L757 | スコアリング (ローカル) |
 | `norm(s)` | L756 | 文字列正規化 (ローカル) |
 
+### book オブジェクトのスキーマ
+parseCiniiItems と Google Books push の両方で生成される共通形状:
+- 表示用: `title`, `authors`, `publisher`, `series`, `date`, `isbn`,
+  `cover`, `price`, `pages`, `categories`, `lang`, `desc`, `rating` (★文字列)
+- スコアリング用: `ratingNum` (number), `ratingsCount` (number)
+  - CiNii はどちらも 0 固定 (rating 情報なし)
+  - Google Books は volumeInfo.averageRating / ratingsCount から取得
+  - Phase 7 (楽天) で reviewAverage / reviewCount を同じフィールドに書く想定
+
 ## Phase 履歴
 
 | Phase | Hash | 内容 |
@@ -81,8 +92,9 @@
 | 3 | `839d5f6` | ISBN-13 正規化 |
 | 4 | `6b47271` | 全集ペナルティ + 全角半角正規化 |
 | 5 | `c1324fa` | 映像メディアペナルティ |
+| 6 | `011a0e4` | 人気度ボーナス (Google Books rating 活用) |
 
-累計 +1 行 (948 → 949)、6 機能追加。
+累計 +1 行 (948 → 949)、7 機能追加。
 
 ## 検証済みクエリ (Phase 5 後)
 
@@ -97,7 +109,6 @@
 | 候補 | 効果 | 規模 |
 |---|---|---|
 | 楽天 API 追加 (ユーザー提供キー方式) | 新刊カバレッジ向上 | 中〜大 |
-| 人気度ボーナス (Google Books averageRating 活用) | ベストセラー浮上 | 中 |
 | 出版年加点 | 古い版より新版優先 | 小 |
 | シリーズグルーピング表示 | UX 改善 | 中 |
 
@@ -117,7 +128,7 @@ DevTools → Application → Local Storage → `https://staka9161-gif.github.io`
 
 | キー | 用途 |
 |---|---|
-| `bookSearchCache:v5` | 検索結果キャッシュ (現行) |
+| `bookSearchCache:v6` | 検索結果キャッシュ (現行) |
 | `recentBooks` | 最近使った書籍 (最大 10 件) |
 | `3d-graph-notes` | ノート本体 |
 | `3d-graph-notes-gcid` | Google OAuth Client ID |
