@@ -677,47 +677,35 @@ const tc=d.onix.CollateralDetail?.TextContent;
 if(tc&&tc.length)b.desc=(tc[0].Text||'').replace(/<[^>]*>/g,'').substring(0,200)}
 results[isbn]=b})}catch(e){}
 return results}
+function parseCiniiItems(cj){const meta=[],isbns=[];if(!cj)return{meta,isbns};try{const items=(cj['@graph']&&cj['@graph'][0]&&cj['@graph'][0].items)||[];items.forEach(item=>{let isbn='';const parts=item['dcterms:hasPart'];if(parts){const arr=Array.isArray(parts)?parts:[parts];arr.forEach(p=>{const id=p['@id']||'';if(id.startsWith('urn:isbn:')){const i=id.replace('urn:isbn:','');if(/^\d{9}[\dX]$/.test(i)||/^\d{13}$/.test(i))isbn=i}})}if(isbn)isbns.push(isbn);const title=item.title||item['dc:title']||'';const creator=item['dc:creator']||'';const authors=creator.replace(/\s*(著|作|編|訳|画|監修|撰|原作)\s*/g,' ').replace(/\s+/g,' ').trim()||'著者不明';const publishers=item['dc:publisher']||[];const publisher=Array.isArray(publishers)?publishers[0]||'':publishers;const date=item['prism:publicationDate']||item['dc:date']||'';let series='';const partOf=item['dcterms:isPartOf'];if(partOf){const parr=Array.isArray(partOf)?partOf:[partOf];parr.forEach(p=>{if(p['dc:title'])series=p['dc:title']})}meta.push({isbn,title,authors,publisher,series,date,cover:'',price:'',pages:'',categories:'',lang:'ja',desc:'',rating:''})})}catch(e){}return{meta,isbns}}
 async function searchBooks(q){
 const res=document.getElementById('book-results');
 try{
-// CiNii Books + Google Booksを並行検索
-const [ciniiRes,gRes1,gRes2]=await Promise.allSettled([
+// CiNii Books (title+author) + Google Books (q+intitle+inauthor) を並行検索
+const [ciniiTitleRes,ciniiAuthorRes,gRes1,gRes2,gRes3]=await Promise.allSettled([
 fetch(`https://ci.nii.ac.jp/books/opensearch/search?title=${encodeURIComponent(q)}&format=json&count=30`),
+fetch(`https://ci.nii.ac.jp/books/opensearch/search?author=${encodeURIComponent(q)}&format=json&count=30`),
 fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=10&printType=books&langRestrict=ja`),
-fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=10&printType=books`)
+fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=10&printType=books`),
+fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${encodeURIComponent(q)}&maxResults=10&printType=books&langRestrict=ja`)
 ]);
-// CiNiiからメタデータ+ISBN抽出
-let ciniiIsbns=[];const ciniiMeta=[];
-if(ciniiRes.status==='fulfilled'){try{const cj=await ciniiRes.value.json();
-const items=(cj['@graph']&&cj['@graph'][0]&&cj['@graph'][0].items)||[];
-items.forEach(item=>{
-let isbn='';
-const parts=item['dcterms:hasPart'];
-if(parts){const arr=Array.isArray(parts)?parts:[parts];
-arr.forEach(p=>{const id=p['@id']||'';if(id.startsWith('urn:isbn:')){const i=id.replace('urn:isbn:','');
-if(/^\d{9}[\dX]$/.test(i)||/^\d{13}$/.test(i))isbn=i}})}
-if(isbn)ciniiIsbns.push(isbn);
-const title=item.title||item['dc:title']||'';
-const creator=item['dc:creator']||'';
-const authors=creator.replace(/\s*(著|作|編|訳|画|監修|撰|原作)\s*/g,' ').replace(/\s+/g,' ').trim()||'著者不明';
-const publishers=item['dc:publisher']||[];
-const publisher=Array.isArray(publishers)?publishers[0]||'':publishers;
-const date=item['prism:publicationDate']||item['dc:date']||'';
-let series='';
-const partOf=item['dcterms:isPartOf'];
-if(partOf){const parr=Array.isArray(partOf)?partOf:[partOf];
-parr.forEach(p=>{if(p['dc:title'])series=p['dc:title']})}
-ciniiMeta.push({isbn,title,authors,publisher,series,date,cover:'',price:'',pages:'',categories:'',lang:'ja',desc:'',rating:''})
-})}catch(e){}}
+// CiNiiからメタデータ+ISBN抽出 (author結果を先にマージして優先)
+let ciniiTitleJson=null,ciniiAuthorJson=null;
+if(ciniiTitleRes.status==='fulfilled')try{ciniiTitleJson=await ciniiTitleRes.value.json()}catch(e){}
+if(ciniiAuthorRes.status==='fulfilled')try{ciniiAuthorJson=await ciniiAuthorRes.value.json()}catch(e){}
+const authorParsed=parseCiniiItems(ciniiAuthorJson);
+const titleParsed=parseCiniiItems(ciniiTitleJson);
+const ciniiMeta=[...authorParsed.meta,...titleParsed.meta];
+const ciniiIsbns=[...new Set([...authorParsed.isbns,...titleParsed.isbns])];
 // OpenBDでISBN付き書籍の詳細を補完
 const obdData=await openBDLookup(ciniiIsbns);
-const ciniiBooks=[];const seenIsbn=new Set();
+const ciniiBooks=[];const seenIsbn=new Set();const seenKey=new Set();
 ciniiMeta.forEach(m=>{
 if(m.isbn&&obdData[m.isbn]){const o=obdData[m.isbn];
 if(seenIsbn.has(m.isbn))return;seenIsbn.add(m.isbn);
 ciniiBooks.push({...m,title:o.title||m.title,authors:o.authors||m.authors,publisher:o.publisher||m.publisher,
 series:o.series||m.series,cover:o.cover||'',price:o.price||'',desc:o.desc||'',date:o.date||m.date})}
-else if(m.title&&!m.isbn){ciniiBooks.push(m)}
+else if(m.title&&!m.isbn){const key=(m.title+'|'+m.authors).toLowerCase();if(seenKey.has(key))return;seenKey.add(key);ciniiBooks.push(m)}
 else if(m.isbn&&!seenIsbn.has(m.isbn)){seenIsbn.add(m.isbn);ciniiBooks.push(m)}
 });
 // Google Booksの結果を統合
@@ -725,6 +713,7 @@ let googleBooks=[];
 const gItems=[];
 if(gRes1.status==='fulfilled'){try{const g1=await gRes1.value.json();if(g1.items)gItems.push(...g1.items)}catch(e){}}
 if(gRes2.status==='fulfilled'){try{const g2=await gRes2.value.json();if(g2.items)gItems.push(...g2.items)}catch(e){}}
+if(gRes3.status==='fulfilled'){try{const g3=await gRes3.value.json();if(g3.items)gItems.push(...g3.items)}catch(e){}}
 const seen=new Set();
 gItems.forEach(item=>{if(seen.has(item.id))return;seen.add(item.id);
 const v=item.volumeInfo;const title=v.title||'';const sub=v.subtitle?' - '+v.subtitle:'';
