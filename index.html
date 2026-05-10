@@ -651,6 +651,10 @@ function getRecentBooks(){try{return JSON.parse(localStorage.getItem('recentBook
 function saveRecentBook(b){if(typeof b==='string')b=JSON.parse(b);let recent=getRecentBooks();recent=recent.filter(r=>r.title!==b.title||r.authors!==b.authors);recent.unshift({title:b.title,authors:b.authors,publisher:b.publisher||'',date:b.date||'',isbn:b.isbn||'',cover:b.cover||'',categories:b.categories||'',pages:b.pages||'',lang:b.lang||'',series:b.series||'',price:b.price||'',usedAt:Date.now()});if(recent.length>10)recent=recent.slice(0,10);localStorage.setItem('recentBooks',JSON.stringify(recent))}
 function renderRecentBooks(){const recent=getRecentBooks();if(!recent.length)return'<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div>';let html='<div class="recent-books-header"><span>📕 最近使った書籍</span><button class="recent-books-clear" onclick="clearRecentBooks()">クリア</button></div>';html+=recent.map(b=>renderBookItem(b)).join('');return html}
 function clearRecentBooks(){localStorage.removeItem('recentBooks');document.getElementById('book-results').innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div>';showToast('履歴をクリアしました')}
+const BOOK_CACHE_KEY='bookSearchCache:v1',BOOK_CACHE_TTL=60*60*1000,BOOK_CACHE_MAX=50;
+function normalizeBookQuery(q){return q.trim().replace(/\s+/g,' ').toLowerCase()}
+function getSearchCache(q){try{const c=JSON.parse(localStorage.getItem(BOOK_CACHE_KEY)||'{}');const k=normalizeBookQuery(q);const e=c[k];if(!e)return null;if(Date.now()-e.savedAt>BOOK_CACHE_TTL){delete c[k];localStorage.setItem(BOOK_CACHE_KEY,JSON.stringify(c));return null}return{ciniiBooks:e.ciniiBooks,googleBooks:e.googleBooks}}catch(e){return null}}
+function setSearchCache(q,ciniiBooks,googleBooks){try{const c=JSON.parse(localStorage.getItem(BOOK_CACHE_KEY)||'{}');const now=Date.now();Object.keys(c).forEach(k=>{if(now-c[k].savedAt>BOOK_CACHE_TTL)delete c[k]});const keys=Object.keys(c);if(keys.length>=BOOK_CACHE_MAX){keys.sort((a,b)=>c[a].savedAt-c[b].savedAt);keys.slice(0,keys.length-BOOK_CACHE_MAX+1).forEach(k=>delete c[k])}c[normalizeBookQuery(q)]={ciniiBooks,googleBooks,savedAt:now};localStorage.setItem(BOOK_CACHE_KEY,JSON.stringify(c))}catch(e){}}
 function openBookSearch(){document.getElementById('book-search-modal').classList.add('visible');const i=document.getElementById('book-search-input');i.value='';i.focus();document.getElementById('book-results').innerHTML=renderRecentBooks()}
 function closeBookSearch(){document.getElementById('book-search-modal').classList.remove('visible')}
 document.getElementById('book-search-modal').addEventListener('click',e=>{if(e.target.id==='book-search-modal')closeBookSearch()});
@@ -681,6 +685,14 @@ function parseCiniiItems(cj){const meta=[],isbns=[];if(!cj)return{meta,isbns};tr
 async function searchBooks(q){
 const res=document.getElementById('book-results');
 try{
+const cached=getSearchCache(q);
+if(cached){let html='';
+if(cached.ciniiBooks.length){html+=`<div class="book-section-header"><span class="book-source src-ndl">日本</span>国内出版 (${cached.ciniiBooks.length}件)</div>`;
+html+=cached.ciniiBooks.map(b=>renderBookItem(b)).join('')}
+if(cached.googleBooks.length){html+=`<div class="book-section-header"><span class="book-source src-google">Google</span>Google Books (${cached.googleBooks.length}件)</div>`;
+html+=cached.googleBooks.map(b=>renderBookItem(b)).join('')}
+if(!html)html='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';
+res.innerHTML=html;return}
 // CiNii Books (title+author) + Google Books (q+intitle+inauthor) を並行検索
 const [ciniiTitleRes,ciniiAuthorRes,gRes1,gRes2,gRes3]=await Promise.allSettled([
 fetch(`https://ci.nii.ac.jp/books/opensearch/search?title=${encodeURIComponent(q)}&format=json&count=30`),
@@ -745,6 +757,7 @@ const ae=at===ql?2:at.startsWith(ql)?1:at.includes(ql)?0.5:0;
 const be=bt===ql?2:bt.startsWith(ql)?1:bt.includes(ql)?0.5:0;
 return be-ae};
 ciniiBooks.sort(sortByTitle);googleBooks.sort(sortByTitle);
+setSearchCache(q,ciniiBooks,googleBooks);
 if(!ciniiBooks.length&&!googleBooks.length){res.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';return}
 let html='';
 if(ciniiBooks.length){html+=`<div class="book-section-header"><span class="book-source src-ndl">日本</span>国内出版 (${ciniiBooks.length}件)</div>`;
