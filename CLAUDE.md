@@ -24,13 +24,16 @@
 - 「ついで」修正禁止 (意図しない変更ゼロ)
 - 実装前に必ず計画を提示し、ユーザーの GO サインを待つ
 
-## 書籍検索の現状 (Phase 6 完了)
+## 書籍検索の現状 (Phase 7d 完了)
 
 ### API 構成
-`Promise.allSettled` で 5 本並列:
+`Promise.allSettled` で 5 本並列、楽天は逐次 (1 本のみ):
 - CiNii Books: `title=` + `author=`
 - Google Books: `q=` + `intitle:` + `inauthor:`
+- 楽天 Books: `author=` + `sort=reviewCount` (キー設定済の場合のみ)
 - + openBD で ISBN 補完 (CiNii / Google それぞれ別呼出)
+
+総 API コール数: 6本 (CiNii×2 + Google×3 + 楽天×1)
 
 ### スコアリング (`sortByRelevance` @ L757)
 | 軸 | スコア |
@@ -43,7 +46,7 @@
 | 著者不明ペナルティ | -0.5 |
 | 全集系ペナルティ | -1.5 |
 | 映像メディアペナルティ | -1.0 |
-| 人気度ボーナス (Google Books のみ) | 0 〜 +1.5 |
+| 人気度ボーナス (Google Books + 楽天) | 0 〜 +1.5 |
 
 正規表現:
 - 全集系: `/(全作品|全集|選集|傑作集|作品集|大全|アンソロジー)/`
@@ -56,7 +59,7 @@
 3. 区切り文字除去 (`[,、・\s　]+`)
 
 ### キャッシュ
-- localStorage キー: `bookSearchCache:v6`
+- localStorage キー: `bookSearchCache:v8`
 - TTL: 60 分 / 最大 50 件 / LRU 風 eviction
 - スコアリング変更時はキー version を上げて旧キャッシュを cleanup する慣習
 - 関連関数: `getSearchCache`, `setSearchCache`, `normalizeBookQuery` @ L656-658
@@ -72,6 +75,11 @@
 | `searchBooks(q)` | L687 | メインエントリ |
 | `sortByRelevance(a, b)` | L757 | スコアリング (ローカル) |
 | `norm(s)` | L756 | 文字列正規化 (ローカル) |
+| `fetchRakutenBooks(q, mode)` | L717 | 楽天 API 呼出 (mode='author'/'title') |
+| `parseRakutenItems(rj)` | L718 | 楽天レスポンスのパース |
+| `getRakutenConfig()` | L518 | 楽天キー読取 (Phase 7c) |
+| `openRakutenSetup()` | L519 | 設定モーダル開く (Phase 7c) |
+| `saveRakutenConfig()` | L521 | 楽天設定保存 (Phase 7c) |
 
 ### book オブジェクトのスキーマ
 parseCiniiItems と Google Books push の両方で生成される共通形状:
@@ -80,7 +88,7 @@ parseCiniiItems と Google Books push の両方で生成される共通形状:
 - スコアリング用: `ratingNum` (number), `ratingsCount` (number)
   - CiNii はどちらも 0 固定 (rating 情報なし)
   - Google Books は volumeInfo.averageRating / ratingsCount から取得
-  - Phase 7 (楽天) で reviewAverage / reviewCount を同じフィールドに書く想定
+  - 楽天 (Phase 7d) は reviewAverage / reviewCount を ratingNum / ratingsCount に書き込み、Phase 6 の popBonus が自動適用
 
 ## Phase 履歴
 
@@ -93,27 +101,58 @@ parseCiniiItems と Google Books push の両方で生成される共通形状:
 | 4 | `6b47271` | 全集ペナルティ + 全角半角正規化 |
 | 5 | `c1324fa` | 映像メディアペナルティ |
 | 6 | `011a0e4` | 人気度ボーナス (Google Books rating 活用) |
+| 7c | `c3588b3` | 楽天 API 設定UI追加 (歯車アイコン + モーダル) |
+| 7d | `7bb5872` | 楽天 API 統合 (author 検索のみ、ベストセラー浮上) |
 
-累計 +1 行 (948 → 949)、7 機能追加。
+累計 +約43 行 (948 → 991)、9 機能追加。
 
-## 検証済みクエリ (Phase 5 後)
+注: 初回 Phase 7d (commit 9c16bf4) は環境問題で revert (commit f48fe71)。
+再実装 (commit 7bb5872) で author= のみに簡略化して成功。
+
+## 検証済みクエリ (Phase 7d 後)
 
 - 夏目漱石 → 漱石本人著作 (夢十夜・道草・硝子戸の中等) が上位 ✓
 - 東野圭吾 → 容疑者X・名探偵の掟・パラレルワールド等の本人著作のみ ✓
-- 村上春樹 → 単行本 (アンダーグラウンド・レキシントンの幽霊) が上位、全作品集は下位 ✓
+- 村上春樹 → CiNii: アンダーグラウンド・レキシントンの幽霊、楽天: 1Q84 BOOK1(★4.1/2075件)・ノルウェイの森(2134件) ✓ buntomo相当
 - 容疑者Xの献身 → 本人 1 位 (回帰なし) ✓
 - ノルウェイの森 → Phase 5 で映画版を蹴落とし、単行本浮上 ✓
+
+## 楽天 API 連携の設計メモ (Phase 7d)
+
+### キーの取り扱い
+- localStorage キー: `3d-graph-notes-rakuten`
+- 値: `{applicationId, accessKey, affiliateId}`
+- キーはコードに埋め込まない (Electron 配布で asar 抽出可能なため)
+- 設定 UI から保存 (歯車アイコン → モーダル)
+- 楽天 API キーは Referer/Origin に紐付く (登録時に許可ドメイン指定)
+
+### author 検索のみ採用
+- title= 検索は周辺本 (研究書・雑誌等) を返すため不採用
+- title= の関数定義は残してある (将来 fallback 用)
+- author= + sort=reviewCount でベストセラー上位を実現
+
+### レート制限
+- 楽天 API は 1 秒 1 リクエスト
+- 現状 1 検索につき 1 楽天 API call なので問題なし
+- 並行する CiNii/Google と独立して動作
+
+### キャッシュ
+- 楽天結果も localStorage キャッシュに含める
+- `bookSearchCache:v8` に {ciniiBooks, googleBooks, rakutenBooks, savedAt} 形式で保存
+
+### 過去の試行 (commit 9c16bf4, revert済)
+- title + author の 2 リクエスト構成だった
+- Google API 日次クォータ超過 + Service Worker キャッシュ汚染で「絵本上位」現象
+- 環境問題のため revert、後に author= のみで再実装 (commit 7bb5872)
+
+---
 
 ## 残課題候補 (未着手)
 
 | 候補 | 効果 | 規模 |
 |---|---|---|
-| 楽天 API 追加 (ユーザー提供キー方式) | 新刊カバレッジ向上 | 中〜大 |
 | 出版年加点 | 古い版より新版優先 | 小 |
 | シリーズグルーピング表示 | UX 改善 | 中 |
-
-### 楽天 API について
-Electron 配布では `accessKey` が asar 抽出で漏洩可能。ユーザー提供キー方式 (設定 UI で入力) が現実的。詳細は将来検討。
 
 ## デバッグ Tips
 
@@ -128,10 +167,11 @@ DevTools → Application → Local Storage → `https://staka9161-gif.github.io`
 
 | キー | 用途 |
 |---|---|
-| `bookSearchCache:v6` | 検索結果キャッシュ (現行) |
+| `bookSearchCache:v8` | 検索結果キャッシュ (現行) |
 | `recentBooks` | 最近使った書籍 (最大 10 件) |
 | `3d-graph-notes` | ノート本体 |
 | `3d-graph-notes-gcid` | Google OAuth Client ID |
+| `3d-graph-notes-rakuten` | 楽天 API キー (Phase 7c で導入) |
 
 ### ローカル動作確認
 ```bash
