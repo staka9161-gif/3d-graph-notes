@@ -24,7 +24,7 @@
 - 「ついで」修正禁止 (意図しない変更ゼロ)
 - 実装前に必ず計画を提示し、ユーザーの GO サインを待つ
 
-## 書籍検索の現状 (Phase 7d 完了)
+## 書籍検索の現状 (Phase 8 完了)
 
 ### API 構成
 `Promise.allSettled` で 5 本並列、楽天は逐次 (1 本のみ):
@@ -34,6 +34,8 @@
 - + openBD で ISBN 補完 (CiNii / Google それぞれ別呼出)
 
 総 API コール数: 6本 (CiNii×2 + Google×3 + 楽天×1)
+
+表示は 3 ソースを統合した 1 リスト (Phase 8)、楽天を軸に CiNii/Google が補助。
 
 ### スコアリング (`sortByRelevance` @ L757)
 | 軸 | スコア |
@@ -47,6 +49,7 @@
 | 全集系ペナルティ | -1.5 |
 | 映像メディアペナルティ | -1.0 |
 | 人気度ボーナス (Google Books + 楽天) | 0 〜 +1.5 |
+| ソース重み (Phase 8) | 楽天 +2.0 / CiNii 0 / Google -0.5 |
 
 正規表現:
 - 全集系: `/(全作品|全集|選集|傑作集|作品集|大全|アンソロジー)/`
@@ -59,9 +62,10 @@
 3. 区切り文字除去 (`[,、・\s　]+`)
 
 ### キャッシュ
-- localStorage キー: `bookSearchCache:v8`
+- localStorage キー: `bookSearchCache:v9`
 - TTL: 60 分 / 最大 50 件 / LRU 風 eviction
 - スコアリング変更時はキー version を上げて旧キャッシュを cleanup する慣習
+- **スキーマ**: `{allBooks, savedAt}` (Phase 8 で 3 リスト → 1 リストに統合)
 - 関連関数: `getSearchCache`, `setSearchCache`, `normalizeBookQuery` @ L656-658
 
 ### 主要関数の場所
@@ -89,6 +93,7 @@ parseCiniiItems と Google Books push の両方で生成される共通形状:
   - CiNii はどちらも 0 固定 (rating 情報なし)
   - Google Books は volumeInfo.averageRating / ratingsCount から取得
   - 楽天 (Phase 7d) は reviewAverage / reviewCount を ratingNum / ratingsCount に書き込み、Phase 6 の popBonus が自動適用
+- **source** フィールド (Phase 8): `'cinii'` / `'rakuten'` / `'google'` のいずれか。ソース重みのスコアリングとバッジ表示に使用。
 
 ## Phase 履歴
 
@@ -103,17 +108,19 @@ parseCiniiItems と Google Books push の両方で生成される共通形状:
 | 6 | `011a0e4` | 人気度ボーナス (Google Books rating 活用) |
 | 7c | `c3588b3` | 楽天 API 設定UI追加 (歯車アイコン + モーダル) |
 | 7d | `7bb5872` | 楽天 API 統合 (author 検索のみ、ベストセラー浮上) |
+| 8 | `b7bc34a` | 統合ランキング (3 セクション → 1 リスト、楽天軸 +2.0) |
+| 8-fix | `7ae87d3` | Phase 8 regression 修正 (ciniiBooks const→let + console.error) |
 
-累計 +約43 行 (948 → 991)、9 機能追加。
+累計 +約33 行 (948 → 981)、10 機能追加。
 
 注: 初回 Phase 7d (commit 9c16bf4) は環境問題で revert (commit f48fe71)。
 再実装 (commit 7bb5872) で author= のみに簡略化して成功。
 
-## 検証済みクエリ (Phase 7d 後)
+## 検証済みクエリ (Phase 8 後)
 
 - 夏目漱石 → 漱石本人著作 (夢十夜・道草・硝子戸の中等) が上位 ✓
 - 東野圭吾 → 容疑者X・名探偵の掟・パラレルワールド等の本人著作のみ ✓
-- 村上春樹 → CiNii: アンダーグラウンド・レキシントンの幽霊、楽天: 1Q84 BOOK1(★4.1/2075件)・ノルウェイの森(2134件) ✓ buntomo相当
+- 村上春樹 → 統合表示: 1位 1Q84 BOOK1(★4.1/2075件)・2位 ノルウェイの森・以降 CiNii の単行本が補助 ✓ buntomo相当
 - 容疑者Xの献身 → 本人 1 位 (回帰なし) ✓
 - ノルウェイの森 → Phase 5 で映画版を蹴落とし、単行本浮上 ✓
 
@@ -138,7 +145,20 @@ parseCiniiItems と Google Books push の両方で生成される共通形状:
 
 ### キャッシュ
 - 楽天結果も localStorage キャッシュに含める
-- `bookSearchCache:v8` に {ciniiBooks, googleBooks, rakutenBooks, savedAt} 形式で保存
+- `bookSearchCache:v9` に {allBooks, savedAt} 形式で保存 (Phase 8 で統合)
+
+### 統合ランキング (Phase 8)
+- 3 セクション (CiNii / 楽天 / Google) を廃止 → 1 リストに統合
+- ソース重みで楽天を軸に: 楽天 +2.0 / CiNii 0 / Google -0.5
+- dedup 優先順を反転: 楽天 > CiNii > Google (楽天版が cover/reviewCount を持つので優先)
+- 各 book に source フィールド追加、renderBookItem にソースバッジ表示
+- キャッシュスキーマを `{allBooks}` に簡略化、v9 に更新
+
+### Phase 8 の regression 教訓
+- `const ciniiBooks` を Phase 8 で再代入しようとして TypeError
+- searchBooks の catch ブロックが silent fail だったため発見が遅れた
+- 修正: const → let、catch に `console.error('searchBooks error:', e)` 追加
+- 教訓: catch で silent fail させない、既存変数の宣言を確認してから再代入を追加
 
 ### 過去の試行 (commit 9c16bf4, revert済)
 - title + author の 2 リクエスト構成だった
@@ -167,7 +187,7 @@ DevTools → Application → Local Storage → `https://staka9161-gif.github.io`
 
 | キー | 用途 |
 |---|---|
-| `bookSearchCache:v8` | 検索結果キャッシュ (現行) |
+| `bookSearchCache:v9` | 検索結果キャッシュ (現行、{allBooks} スキーマ) |
 | `recentBooks` | 最近使った書籍 (最大 10 件) |
 | `3d-graph-notes` | ノート本体 |
 | `3d-graph-notes-gcid` | Google OAuth Client ID |
