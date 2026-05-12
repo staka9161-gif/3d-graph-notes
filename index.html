@@ -744,7 +744,7 @@ const ciniiMeta=[...authorParsed.meta,...titleParsed.meta];
 const ciniiIsbns=[...new Set([...authorParsed.isbns,...titleParsed.isbns])];
 // OpenBDでISBN付き書籍の詳細を補完
 const obdData=await openBDLookup(ciniiIsbns);
-const ciniiBooks=[];const seenIsbn=new Set();const seenKey=new Set();
+let ciniiBooks=[];const seenIsbn=new Set();const seenKey=new Set();
 ciniiMeta.forEach(m=>{
 if(m.isbn&&obdData[m.isbn]){const o=obdData[m.isbn];
 if(seenIsbn.has(m.isbn))return;seenIsbn.add(m.isbn);
@@ -796,7 +796,7 @@ allBooks.sort(sortByRelevance);
 setSearchCache(q,allBooks);
 if(!allBooks.length){res.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';return}
 res.innerHTML=allBooks.map(b=>renderBookItem(b)).join('')}
-catch(e){res.innerHTML='<div style="padding:20px;text-align:center;color:var(--red)">検索エラー</div>'}}
+catch(e){console.error('searchBooks error:',e);res.innerHTML='<div style="padding:20px;text-align:center;color:var(--red)">検索エラー</div>'}}
 function isJapanese(s){return/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(s)}
 function insertBookFull(b){if(typeof b==='string')b=JSON.parse(b);saveRecentBook(b);let t=`\n\n---\n📚 **${b.title}**\n著者: ${b.authors}\n`;if(b.series)t+=`叢書: ${b.series}\n`;if(b.publisher)t+=`出版: ${b.publisher}`;if(b.date)t+=` (${b.date})`;t+='\n';if(b.pages)t+=`ページ数: ${b.pages}p\n`;if(b.price)t+=`価格: ${b.price}\n`;if(b.categories)t+=`カテゴリ: ${b.categories}\n`;if(b.isbn)t+=`ISBN: ${b.isbn}\n`;t+='---\n';insertTextAtCursor(t);closeBookSearch();showToast('📚 '+b.title)}
 function insertBookShort(b){if(typeof b==='string')b=JSON.parse(b);saveRecentBook(b);insertTextAtCursor(`（${b.authors}『${b.title}』${b.publisher||''}${b.date?', '+b.date:''}）`);closeBookSearch();showToast('📚 短縮引用挿入')}
