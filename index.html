@@ -225,6 +225,7 @@ body{font-family:'Segoe UI','Meiryo',sans-serif;background:var(--bg-primary);col
 .book-source{font-size:8px;display:inline-block;padding:0 5px;border-radius:8px;margin-bottom:2px;font-weight:600}
 .book-source.src-ndl{background:rgba(166,227,161,0.15);color:var(--green)}
 .book-source.src-google{background:rgba(137,180,250,0.15);color:var(--accent)}
+.book-source.src-rakuten{background:rgba(191,73,63,0.15);color:#bf493f}
 .book-section-header{padding:8px 14px;font-size:11px;color:var(--text-secondary);font-weight:600;border-bottom:1px solid var(--border);background:var(--bg-primary);display:flex;align-items:center;gap:6px}
 .book-desc{font-size:10px;color:var(--text-secondary);margin-top:3px;max-height:48px;overflow:hidden;line-height:1.4}
 .book-insert-btns{display:flex;gap:4px;margin-top:5px}
@@ -681,11 +682,11 @@ function getRecentBooks(){try{return JSON.parse(localStorage.getItem('recentBook
 function saveRecentBook(b){if(typeof b==='string')b=JSON.parse(b);let recent=getRecentBooks();recent=recent.filter(r=>r.title!==b.title||r.authors!==b.authors);recent.unshift({title:b.title,authors:b.authors,publisher:b.publisher||'',date:b.date||'',isbn:b.isbn||'',cover:b.cover||'',categories:b.categories||'',pages:b.pages||'',lang:b.lang||'',series:b.series||'',price:b.price||'',usedAt:Date.now()});if(recent.length>10)recent=recent.slice(0,10);localStorage.setItem('recentBooks',JSON.stringify(recent))}
 function renderRecentBooks(){const recent=getRecentBooks();if(!recent.length)return'<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div>';let html='<div class="recent-books-header"><span>📕 最近使った書籍</span><button class="recent-books-clear" onclick="clearRecentBooks()">クリア</button></div>';html+=recent.map(b=>renderBookItem(b)).join('');return html}
 function clearRecentBooks(){localStorage.removeItem('recentBooks');document.getElementById('book-results').innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">書籍名を入力して検索</div>';showToast('履歴をクリアしました')}
-const BOOK_CACHE_KEY='bookSearchCache:v6',BOOK_CACHE_TTL=60*60*1000,BOOK_CACHE_MAX=50;
-try{localStorage.removeItem('bookSearchCache:v1');localStorage.removeItem('bookSearchCache:v2');localStorage.removeItem('bookSearchCache:v3');localStorage.removeItem('bookSearchCache:v4');localStorage.removeItem('bookSearchCache:v5')}catch(e){}
+const BOOK_CACHE_KEY='bookSearchCache:v8',BOOK_CACHE_TTL=60*60*1000,BOOK_CACHE_MAX=50;
+try{localStorage.removeItem('bookSearchCache:v1');localStorage.removeItem('bookSearchCache:v2');localStorage.removeItem('bookSearchCache:v3');localStorage.removeItem('bookSearchCache:v4');localStorage.removeItem('bookSearchCache:v5');localStorage.removeItem('bookSearchCache:v6');localStorage.removeItem('bookSearchCache:v7')}catch(e){}
 function normalizeBookQuery(q){return q.trim().replace(/\s+/g,' ').toLowerCase()}
-function getSearchCache(q){try{const c=JSON.parse(localStorage.getItem(BOOK_CACHE_KEY)||'{}');const k=normalizeBookQuery(q);const e=c[k];if(!e)return null;if(Date.now()-e.savedAt>BOOK_CACHE_TTL){delete c[k];localStorage.setItem(BOOK_CACHE_KEY,JSON.stringify(c));return null}return{ciniiBooks:e.ciniiBooks,googleBooks:e.googleBooks}}catch(e){return null}}
-function setSearchCache(q,ciniiBooks,googleBooks){try{const c=JSON.parse(localStorage.getItem(BOOK_CACHE_KEY)||'{}');const now=Date.now();Object.keys(c).forEach(k=>{if(now-c[k].savedAt>BOOK_CACHE_TTL)delete c[k]});const keys=Object.keys(c);if(keys.length>=BOOK_CACHE_MAX){keys.sort((a,b)=>c[a].savedAt-c[b].savedAt);keys.slice(0,keys.length-BOOK_CACHE_MAX+1).forEach(k=>delete c[k])}c[normalizeBookQuery(q)]={ciniiBooks,googleBooks,savedAt:now};localStorage.setItem(BOOK_CACHE_KEY,JSON.stringify(c))}catch(e){}}
+function getSearchCache(q){try{const c=JSON.parse(localStorage.getItem(BOOK_CACHE_KEY)||'{}');const k=normalizeBookQuery(q);const e=c[k];if(!e)return null;if(Date.now()-e.savedAt>BOOK_CACHE_TTL){delete c[k];localStorage.setItem(BOOK_CACHE_KEY,JSON.stringify(c));return null}return{ciniiBooks:e.ciniiBooks,googleBooks:e.googleBooks,rakutenBooks:e.rakutenBooks||[]}}catch(e){return null}}
+function setSearchCache(q,ciniiBooks,googleBooks,rakutenBooks){try{const c=JSON.parse(localStorage.getItem(BOOK_CACHE_KEY)||'{}');const now=Date.now();Object.keys(c).forEach(k=>{if(now-c[k].savedAt>BOOK_CACHE_TTL)delete c[k]});const keys=Object.keys(c);if(keys.length>=BOOK_CACHE_MAX){keys.sort((a,b)=>c[a].savedAt-c[b].savedAt);keys.slice(0,keys.length-BOOK_CACHE_MAX+1).forEach(k=>delete c[k])}c[normalizeBookQuery(q)]={ciniiBooks,googleBooks,rakutenBooks:rakutenBooks||[],savedAt:now};localStorage.setItem(BOOK_CACHE_KEY,JSON.stringify(c))}catch(e){}}
 function openBookSearch(){document.getElementById('book-search-modal').classList.add('visible');const i=document.getElementById('book-search-input');i.value='';i.focus();document.getElementById('book-results').innerHTML=renderRecentBooks()}
 function closeBookSearch(){document.getElementById('book-search-modal').classList.remove('visible')}
 document.getElementById('book-search-modal').addEventListener('click',e=>{if(e.target.id==='book-search-modal')closeBookSearch()});
@@ -713,6 +714,8 @@ if(tc&&tc.length)b.desc=(tc[0].Text||'').replace(/<[^>]*>/g,'').substring(0,200)
 results[isbn]=b})}catch(e){}
 return results}
 function isbnToIsbn13(isbn){if(!isbn)return'';isbn=isbn.replace(/[-\s]/g,'');if(/^\d{13}$/.test(isbn))return isbn;if(/^\d{9}[\dX]$/.test(isbn)){const p='978'+isbn.substring(0,9);let sum=0;for(let i=0;i<12;i++)sum+=parseInt(p[i])*(i%2===0?1:3);const c=(10-(sum%10))%10;return p+c}return''}
+async function fetchRakutenBooks(q,mode){const cfg=getRakutenConfig();if(!cfg)return null;const p=new URLSearchParams({applicationId:cfg.applicationId,accessKey:cfg.accessKey,format:'json',formatVersion:'2',hits:'20'});if(cfg.affiliateId)p.set('affiliateId',cfg.affiliateId);if(mode==='author'){p.set('author',q);p.set('sort','reviewCount')}else{p.set('title',q)}try{const r=await fetch('https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?'+p);if(!r.ok){console.warn('Rakuten API error:',r.status);return null}return await r.json()}catch(e){console.warn('Rakuten fetch error:',e);return null}}
+function parseRakutenItems(rj){if(!rj||!rj.Items)return[];return rj.Items.filter(item=>item.title&&item.isbn).map(item=>{const rc=item.reviewCount||0;const ra=item.reviewAverage||0;return{isbn:isbnToIsbn13(item.isbn),title:item.title,authors:(item.author||'著者不明').replace(/\//g,', '),publisher:item.publisherName||'',series:item.seriesName||'',date:item.salesDate||'',cover:item.largeImageUrl||item.mediumImageUrl||'',price:item.itemPrice?item.itemPrice+'円':'',pages:'',categories:'',lang:'ja',desc:(item.itemCaption||'').replace(/<[^>]*>/g,'').substring(0,200),rating:ra?'★'.repeat(Math.round(ra))+'☆'.repeat(5-Math.round(ra))+` ${ra}/5 (${rc}件)`:'',ratingNum:ra,ratingsCount:rc}})}
 function parseCiniiItems(cj){const meta=[],isbns=[];if(!cj)return{meta,isbns};try{const items=(cj['@graph']&&cj['@graph'][0]&&cj['@graph'][0].items)||[];items.forEach(item=>{let isbn='';const parts=item['dcterms:hasPart'];if(parts){const arr=Array.isArray(parts)?parts:[parts];arr.forEach(p=>{const id=p['@id']||'';if(id.startsWith('urn:isbn:')){const i=id.replace('urn:isbn:','');if(/^\d{9}[\dX]$/.test(i)||/^\d{13}$/.test(i))isbn=isbnToIsbn13(i)}})}if(isbn)isbns.push(isbn);const title=item.title||item['dc:title']||'';const creator=item['dc:creator']||'';const authors=creator.replace(/\s*(著|作|編|訳|画|監修|撰|原作)\s*/g,' ').replace(/\s+/g,' ').trim()||'著者不明';const publishers=item['dc:publisher']||[];const publisher=Array.isArray(publishers)?publishers[0]||'':publishers;const date=item['prism:publicationDate']||item['dc:date']||'';let series='';const partOf=item['dcterms:isPartOf'];if(partOf){const parr=Array.isArray(partOf)?partOf:[partOf];parr.forEach(p=>{if(p['dc:title'])series=p['dc:title']})}meta.push({isbn,title,authors,publisher,series,date,cover:'',price:'',pages:'',categories:'',lang:'ja',desc:'',rating:'',ratingNum:0,ratingsCount:0})})}catch(e){}return{meta,isbns}}
 async function searchBooks(q){
 const res=document.getElementById('book-results');
@@ -721,6 +724,8 @@ const cached=getSearchCache(q);
 if(cached){let html='';
 if(cached.ciniiBooks.length){html+=`<div class="book-section-header"><span class="book-source src-ndl">日本</span>国内出版 (${cached.ciniiBooks.length}件)</div>`;
 html+=cached.ciniiBooks.map(b=>renderBookItem(b)).join('')}
+if(cached.rakutenBooks.length){html+=`<div class="book-section-header"><span class="book-source src-rakuten">楽天</span>楽天ブックス (${cached.rakutenBooks.length}件)</div>`;
+html+=cached.rakutenBooks.map(b=>renderBookItem(b)).join('')}
 if(cached.googleBooks.length){html+=`<div class="book-section-header"><span class="book-source src-google">Google</span>Google Books (${cached.googleBooks.length}件)</div>`;
 html+=cached.googleBooks.map(b=>renderBookItem(b)).join('')}
 if(!html)html='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';
@@ -779,18 +784,25 @@ if(o.series&&!b.series)b.series=o.series;if(o.price&&!b.price)b.price=o.price;
 if(o.cover&&!b.cover)b.cover=o.cover;if(o.desc&&!b.desc)b.desc=o.desc;
 if(o.authors&&isJapanese(o.authors))b.authors=o.authors;
 if(o.title&&isJapanese(o.title))b.title=o.title}});
-// CiNii結果とGoogle結果でISBN重複を排除（CiNii優先）
-const ciniiIsbnSet=new Set(ciniiBooks.map(b=>b.isbn));
-googleBooks=googleBooks.filter(b=>!b.isbn||!ciniiIsbnSet.has(b.isbn));
+// 楽天ブックス (author 検索のみ、1リクエストで完結)
+let rakutenBooks=[];
+if(getRakutenConfig()){const raRes=await fetchRakutenBooks(q,'author');rakutenBooks=parseRakutenItems(raRes)}
+// ISBN重複を排除（CiNii > 楽天 > Google の優先順）
+const ciniiIsbnSet=new Set(ciniiBooks.map(b=>b.isbn).filter(Boolean));
+rakutenBooks=rakutenBooks.filter(b=>!b.isbn||!ciniiIsbnSet.has(b.isbn));
+const ciniiRakutenIsbnSet=new Set([...ciniiIsbnSet,...rakutenBooks.map(b=>b.isbn).filter(Boolean)]);
+googleBooks=googleBooks.filter(b=>!b.isbn||!ciniiRakutenIsbnSet.has(b.isbn));
 // 関連度でソート (タイトル一致 + 著者一致 + ペナルティ)
 const norm=s=>(s||'').replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase().replace(/[,、・\s　]+/g,'');const nq=norm(q);
 const sortByRelevance=(a,b)=>{const scoreOf=x=>{let s=0;const nt=norm(x.title);if(nt===nq)s+=2;else if(nt.startsWith(nq))s+=1;else if(nt.includes(nq))s+=0.5;const na=norm(x.authors);if(na===nq)s+=3;else if(na.includes(nq))s+=2;if(x.authors==='著者不明')s-=0.5;if(/(全作品|全集|選集|傑作集|作品集|大全|アンソロジー)/.test(x.title))s-=1.5;if(/監督|脚本|主演|製作|出演/.test(x.authors))s-=1;const popRc=x.ratingsCount||0;if(popRc>0){const popBase=Math.min(1.5,Math.log10(popRc+1)*0.5);s+=x.ratingNum>0?popBase*(x.ratingNum/5):popBase}return s};return scoreOf(b)-scoreOf(a)};
-ciniiBooks.sort(sortByRelevance);googleBooks.sort(sortByRelevance);
-setSearchCache(q,ciniiBooks,googleBooks);
-if(!ciniiBooks.length&&!googleBooks.length){res.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';return}
+ciniiBooks.sort(sortByRelevance);rakutenBooks.sort(sortByRelevance);googleBooks.sort(sortByRelevance);
+setSearchCache(q,ciniiBooks,googleBooks,rakutenBooks);
+if(!ciniiBooks.length&&!rakutenBooks.length&&!googleBooks.length){res.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:var(--text-secondary)">見つかりませんでした</div>';return}
 let html='';
 if(ciniiBooks.length){html+=`<div class="book-section-header"><span class="book-source src-ndl">日本</span>国内出版 (${ciniiBooks.length}件)</div>`;
 html+=ciniiBooks.map(b=>renderBookItem(b)).join('')}
+if(rakutenBooks.length){html+=`<div class="book-section-header"><span class="book-source src-rakuten">楽天</span>楽天ブックス (${rakutenBooks.length}件)</div>`;
+html+=rakutenBooks.map(b=>renderBookItem(b)).join('')}
 if(googleBooks.length){html+=`<div class="book-section-header"><span class="book-source src-google">Google</span>Google Books (${googleBooks.length}件)</div>`;
 html+=googleBooks.map(b=>renderBookItem(b)).join('')}
 res.innerHTML=html}
